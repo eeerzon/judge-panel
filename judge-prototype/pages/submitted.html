@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Submitted — King &amp; Queen of the Pacific</title>
+<link rel="stylesheet" href="../assets/css/tokens.css" />
+<link rel="stylesheet" href="../assets/css/components.css" />
+<link rel="stylesheet" href="../assets/css/pages.css" />
+</head>
+<body>
+  <div class="app-shell" id="app-shell">
+
+    <div id="preview-banner" class="preview-banner" hidden>Prototype Preview — viewing without normal state guards</div>
+
+    <div id="offline-banner" class="offline-banner" role="status" hidden>
+      <span class="offline-banner-title">No connection</span>
+      <span class="offline-banner-body">Your scores are safe on this device and will sync when connection returns.</span>
+    </div>
+
+    <div id="dev-panel" class="dev-panel is-collapsed">
+      <button id="dev-panel-toggle" class="dev-panel-toggle" type="button" aria-expanded="false">⚙ Prototype Controls</button>
+      <div id="dev-panel-body" class="dev-panel-body" hidden>
+        <p class="dev-panel-heading">Connection (simulated)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" type="button" data-connection="online">Online</button>
+          <button class="dev-panel-btn" type="button" data-connection="offline">Offline</button>
+          <button class="dev-panel-btn" type="button" data-connection="syncing">Syncing</button>
+          <button class="dev-panel-btn" type="button" data-connection="synced">Synced</button>
+        </div>
+        <p class="dev-panel-heading">Failure simulation</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-toggle-save-failure" type="button">Save failure: Off</button>
+          <button class="dev-panel-btn" id="dev-toggle-submit-failure" type="button">Submit failure: Off</button>
+        </div>
+        <p class="dev-panel-heading">Standby timeout (simulated, <span id="dev-timeout-value">45</span>s idle)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-force-standby" type="button">Force Standby Now</button>
+          <button class="dev-panel-btn" id="dev-reset-prototype" type="button">Reset Prototype</button>
+        </div>
+      </div>
+    </div>
+
+    <main id="submitted-screen" class="screen submitted-screen">
+      <div class="submitted-content">
+        <div class="submitted-check" aria-hidden="true">✓</div>
+        <h1 class="submitted-title">Judging Submitted</h1>
+        <p class="submitted-round" id="submitted-round">Preliminary</p>
+        <p class="submitted-stat" id="submitted-stat">15 contestants scored</p>
+        <p class="submitted-time" id="submitted-time">Submitted at 21:42</p>
+        <p class="submitted-lock-note">Your scores are now locked.</p>
+
+        <div class="submitted-actions">
+          <button id="submitted-return-standby" class="scoring-nav-btn scoring-nav-btn-primary" type="button">Return to Standby</button>
+          <button id="submitted-view-scores" class="scoring-nav-btn" type="button">View Submitted Scores</button>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="../assets/js/mock-data.js"></script>
+  <script src="../assets/js/state.js"></script>
+  <script src="../assets/js/navigation.js"></script>
+  <script src="../assets/js/chrome.js"></script>
+  <script src="../assets/js/submitted.js"></script>
+</body>
+</html>

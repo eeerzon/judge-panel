@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>King &amp; Queen of the Pacific — Judge Panel</title>
+<link rel="stylesheet" href="../assets/css/tokens.css" />
+<link rel="stylesheet" href="../assets/css/components.css" />
+<link rel="stylesheet" href="../assets/css/pages.css" />
+</head>
+<body>
+  <div class="app-shell" id="app-shell">
+
+    <div id="preview-banner" class="preview-banner" hidden>Prototype Preview — viewing without normal state guards</div>
+
+    <div id="offline-banner" class="offline-banner" role="status" hidden>
+      <span class="offline-banner-title">No connection</span>
+      <span class="offline-banner-body">Your scores are safe on this device and will sync when connection returns.</span>
+    </div>
+
+    <div id="dev-panel" class="dev-panel is-collapsed">
+      <button id="dev-panel-toggle" class="dev-panel-toggle" type="button" aria-expanded="false">⚙ Prototype Controls</button>
+      <div id="dev-panel-body" class="dev-panel-body" hidden>
+        <p class="dev-panel-heading">Connection (simulated)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" type="button" data-connection="online">Online</button>
+          <button class="dev-panel-btn" type="button" data-connection="offline">Offline</button>
+          <button class="dev-panel-btn" type="button" data-connection="syncing">Syncing</button>
+          <button class="dev-panel-btn" type="button" data-connection="synced">Synced</button>
+        </div>
+        <p class="dev-panel-heading">Failure simulation</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-toggle-save-failure" type="button">Save failure: Off</button>
+          <button class="dev-panel-btn" id="dev-toggle-submit-failure" type="button">Submit failure: Off</button>
+        </div>
+        <p class="dev-panel-heading">Standby timeout (simulated, <span id="dev-timeout-value">45</span>s idle)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-force-standby" type="button">Force Standby Now</button>
+          <button class="dev-panel-btn" id="dev-reset-prototype" type="button">Reset Prototype</button>
+        </div>
+      </div>
+    </div>
+
+    <main id="standby-screen" class="screen standby-screen" role="button" tabindex="0" aria-label="Tap anywhere to start judging">
+      <div class="standby-glow" aria-hidden="true"></div>
+      <div class="standby-vignette" aria-hidden="true"></div>
+
+      <div class="standby-topbar">
+        <span class="clock" id="clock">20:14</span>
+      </div>
+
+      <div class="standby-content">
+        <img class="event-logo-image" id="standby-logo" src="" alt="King &amp; Queen of the Pacific" />
+
+        <p class="event-year" id="standby-year">2026</p>
+
+        <div class="brand-divider" aria-hidden="true"></div>
+
+        <p class="round-label" id="standby-round">Preliminary</p>
+
+        <p class="standby-submitted-note" id="standby-submitted-note" hidden>Judging Submitted</p>
+
+        <p class="tap-instruction">Tap anywhere to start</p>
+      </div>
+
+      <div class="standby-footer">
+        <span class="judge-identity" id="standby-judge-identity">Judge 03 · Amanda Wijaya</span>
+        <span class="connection-status" id="standby-connection-status">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="connection-text">Synced</span>
+        </span>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="../assets/js/mock-data.js"></script>
+  <script src="../assets/js/state.js"></script>
+  <script src="../assets/js/navigation.js"></script>
+  <script src="../assets/js/chrome.js"></script>
+  <script src="../assets/js/standby.js"></script>
+</body>
+</html>

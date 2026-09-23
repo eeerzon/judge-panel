@@ -1,0 +1,52 @@
+/* ============================================================
+   King & Queen of the Pacific — Judge Panel Prototype
+   Phase 1: Standby screen · Phase 2: Contestant Gallery
+   Touch-first, tablet-landscape primary, dark royal/pageant theme
+   ============================================================ */
+
+:root {
+  /* Deep burgundy / wine-black base, not neutral gray */
+  --bg-base: #12090A;
+  --surface: #1B1215;
+  --surface-alt: #22171B;
+  --surface-raised: #2A1D21;
+  --border: #3A2B2F;
+  --border-strong: #4A3439;
+
+  --text-primary: #F6F1E8;
+  --text-secondary: #B8A89B;
+
+  /* Gold/bronze accent scale, inspired by client emblem — used sparingly */
+  --accent: #C89B4B;
+  --accent-bright: #D4AF6A;
+  --accent-deep: #8C6A35;
+  --accent-soft: rgba(200, 155, 75, 0.14);
+
+  /* Status palette: muted, warm-room-safe, never neon */
+  /* Scored is the one status a judge needs to spot at a glance across a
+     full grid, so it breaks from "muted" on purpose — solid emerald fill
+     (not a translucent tint), near-white text/icon for max contrast on
+     top of that fill, a slightly darker border for edge definition.
+     Draft/not-started stay soft since they're not what you're scanning for. */
+  --status-scored-fill: #1E9E5C;
+  --status-scored-fill-border: #167A47;
+  --status-scored-text: #F3FFF6;
+  --status-scored-icon: #C8F7DC;
+  --status-scored-glow: rgba(30, 158, 92, 0.35);
+
+  --status-draft-color: #D9B76B;
+  --status-draft-bg: rgba(200, 155, 75, 0.14);
+  --status-draft-border: rgba(200, 155, 75, 0.38);
+
+  --status-error-color: #E0897A;
+
+  --success: #8FBF9E;
+
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Shared cap for the Scoring Page's header/body/footer shells, so the
+     2-column layout stays a compact, centered workspace on ultra-wide
+     monitors instead of stretching the scoring panel edge to edge. */
+  --scoring-shell-max-width: 1600px;
+}
+

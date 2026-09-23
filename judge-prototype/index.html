@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KREEN Judge Prototype — Launcher</title>
+<link rel="stylesheet" href="assets/css/tokens.css" />
+<link rel="stylesheet" href="assets/css/pages.css" />
+</head>
+<body class="launcher-body">
+
+  <div class="launcher-card">
+    <p class="launcher-eyebrow">Dev / prototype only — not the judge product</p>
+    <h1 class="launcher-title">KREEN Judge Prototype<br /><span class="launcher-subtitle">King &amp; Queen of the Pacific</span></h1>
+
+    <p class="launcher-section-heading">Normal Flow</p>
+    <a class="launcher-btn launcher-btn-primary" href="pages/standby.html">▶ Start Prototype</a>
+
+    <p class="launcher-section-heading">Preview Screens</p>
+    <div class="launcher-grid">
+      <a class="launcher-btn" href="pages/standby.html?preview=1">Standby</a>
+      <a class="launcher-btn" href="pages/contestants.html?preview=1">Contestants</a>
+      <a class="launcher-btn" href="pages/scoring.html?id=3&preview=1">Scoring</a>
+      <a class="launcher-btn" href="pages/review.html?preview=1">Review</a>
+      <a class="launcher-btn" href="pages/submitted.html?preview=1">Submitted</a>
+    </div>
+
+    <button class="launcher-btn launcher-btn-danger" type="button" id="reset-prototype-btn">Reset Prototype State</button>
+
+    <p class="launcher-note">
+      Every file here (this launcher and every page under <code>pages/</code>) opens directly by double-click — no server required. "Start Prototype" follows the real judge flow with normal guards (Submitted only reachable after a real submit, Scoring locked read-only after submission). Preview links open a page directly for visual review — they never guard on state and never write to it. Reset clears the saved data (localStorage namespace <code>kreenJudgePrototype</code>) and restores the seed. <code>start-server.command</code> is available in this same folder as an optional convenience if you want to test the full persistent flow over <code>http://localhost</code> — it is not required for anything above.
+    </p>
+  </div>
+
+  <script src="assets/js/mock-data.js"></script>
+  <script src="assets/js/state.js"></script>
+  <script>
+    document.getElementById('reset-prototype-btn').addEventListener('click', function () {
+      if (window.confirm('Reset prototype data?')) {
+        window.JudgeState.resetState();
+        window.alert('Prototype state reset.');
+      }
+    });
+  </script>
+</body>
+</html>

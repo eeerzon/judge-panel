@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Contestants — King &amp; Queen of the Pacific</title>
+<link rel="stylesheet" href="../assets/css/tokens.css" />
+<link rel="stylesheet" href="../assets/css/components.css" />
+<link rel="stylesheet" href="../assets/css/pages.css" />
+</head>
+<body>
+  <div class="app-shell" id="app-shell">
+
+    <div id="preview-banner" class="preview-banner" hidden>Prototype Preview — viewing without normal state guards</div>
+
+    <div id="offline-banner" class="offline-banner" role="status" hidden>
+      <span class="offline-banner-title">No connection</span>
+      <span class="offline-banner-body">Your scores are safe on this device and will sync when connection returns.</span>
+    </div>
+
+    <div id="dev-panel" class="dev-panel is-collapsed">
+      <button id="dev-panel-toggle" class="dev-panel-toggle" type="button" aria-expanded="false">⚙ Prototype Controls</button>
+      <div id="dev-panel-body" class="dev-panel-body" hidden>
+        <p class="dev-panel-heading">Connection (simulated)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" type="button" data-connection="online">Online</button>
+          <button class="dev-panel-btn" type="button" data-connection="offline">Offline</button>
+          <button class="dev-panel-btn" type="button" data-connection="syncing">Syncing</button>
+          <button class="dev-panel-btn" type="button" data-connection="synced">Synced</button>
+        </div>
+        <p class="dev-panel-heading">Failure simulation</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-toggle-save-failure" type="button">Save failure: Off</button>
+          <button class="dev-panel-btn" id="dev-toggle-submit-failure" type="button">Submit failure: Off</button>
+        </div>
+        <p class="dev-panel-heading">Standby timeout (simulated, <span id="dev-timeout-value">45</span>s idle)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-force-standby" type="button">Force Standby Now</button>
+          <button class="dev-panel-btn" id="dev-reset-prototype" type="button">Reset Prototype</button>
+        </div>
+      </div>
+    </div>
+
+    <main id="gallery-screen" class="screen gallery-screen">
+      <header class="gallery-header">
+        <div class="gallery-header-left">
+          <h1 class="gallery-event-name" id="gallery-event-name">King &amp; Queen of the Pacific</h1>
+          <p class="gallery-round" id="gallery-round">Preliminary</p>
+        </div>
+
+        <div class="gallery-header-right">
+          <button id="review-cta-btn" class="review-cta-btn" type="button">Review &amp; Submit</button>
+          <button id="standby-action" class="standby-action" type="button">
+            <span class="standby-action-dot" aria-hidden="true"></span>
+            Standby
+          </button>
+          <div class="gallery-judge-block">
+            <span class="gallery-judge-identity" id="gallery-judge-identity">Judge 03 · Amanda Wijaya</span>
+            <span class="gallery-progress-text"><span id="progress-count">3 / 12</span> scored</span>
+          </div>
+          <span class="connection-status" id="gallery-connection-status">
+            <span class="connection-dot" aria-hidden="true"></span>
+            <span class="connection-text">Synced</span>
+          </span>
+        </div>
+      </header>
+
+      <div class="submitted-banner" id="gallery-submitted-banner" hidden>
+        <span class="submitted-banner-dot" aria-hidden="true"></span>
+        Judging Submitted
+      </div>
+
+      <div class="progress-bar-track" aria-hidden="true">
+        <div class="progress-bar-fill" id="progress-bar-fill"></div>
+      </div>
+
+      <div class="gallery-titlebar">
+        <div>
+          <h2 class="gallery-title">Contestants</h2>
+          <p class="gallery-subtitle">Tap a contestant to enter scores.</p>
+        </div>
+
+        <div class="filter-group" role="tablist" aria-label="Filter contestants">
+          <button class="filter-pill is-active" type="button" data-filter="all" role="tab" aria-selected="true">
+            All <span class="filter-count" id="count-all">15</span>
+          </button>
+          <button class="filter-pill" type="button" data-filter="to-score" role="tab" aria-selected="false">
+            To Score <span class="filter-count" id="count-to-score">12</span>
+          </button>
+          <button class="filter-pill" type="button" data-filter="scored" role="tab" aria-selected="false">
+            Scored <span class="filter-count" id="count-scored">3</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="gallery-scroll">
+        <div class="contestant-grid" id="contestant-grid" role="list">
+          <!-- cards injected by contestants.js -->
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="../assets/js/mock-data.js"></script>
+  <script src="../assets/js/state.js"></script>
+  <script src="../assets/js/navigation.js"></script>
+  <script src="../assets/js/chrome.js"></script>
+  <script src="../assets/js/contestants.js"></script>
+</body>
+</html>

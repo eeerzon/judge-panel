@@ -1,0 +1,2299 @@
+/* ============================================================
+   King & Queen of the Pacific — Judge Panel Prototype
+   Phase 1: Standby screen · Phase 2: Contestant Gallery
+   Touch-first, tablet-landscape primary, dark royal/pageant theme
+   ============================================================ */
+
+:root {
+  /* Deep burgundy / wine-black base, not neutral gray */
+  --bg-base: #12090A;
+  --surface: #1B1215;
+  --surface-alt: #22171B;
+  --surface-raised: #2A1D21;
+  --border: #3A2B2F;
+  --border-strong: #4A3439;
+
+  --text-primary: #F6F1E8;
+  --text-secondary: #B8A89B;
+
+  /* Gold/bronze accent scale, inspired by client emblem — used sparingly */
+  --accent: #C89B4B;
+  --accent-bright: #D4AF6A;
+  --accent-deep: #8C6A35;
+  --accent-soft: rgba(200, 155, 75, 0.14);
+
+  /* Status palette: muted, warm-room-safe, never neon */
+  /* Scored is the one status a judge needs to spot at a glance across a
+     full grid, so it breaks from "muted" on purpose — solid emerald fill
+     (not a translucent tint), near-white text/icon for max contrast on
+     top of that fill, a slightly darker border for edge definition.
+     Draft/not-started stay soft since they're not what you're scanning for. */
+  --status-scored-fill: #1E9E5C;
+  --status-scored-fill-border: #167A47;
+  --status-scored-text: #F3FFF6;
+  --status-scored-icon: #C8F7DC;
+  --status-scored-glow: rgba(30, 158, 92, 0.35);
+
+  --status-draft-color: #D9B76B;
+  --status-draft-bg: rgba(200, 155, 75, 0.14);
+  --status-draft-border: rgba(200, 155, 75, 0.38);
+
+  --status-error-color: #E0897A;
+
+  --success: #8FBF9E;
+
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Shared cap for the Scoring Page's header/body/footer shells, so the
+     2-column layout stays a compact, centered workspace on ultra-wide
+     monitors instead of stretching the scoring panel edge to edge. */
+  --scoring-shell-max-width: 1600px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* App shell: a flex column so the offline banner (when shown) pushes the
+   active screen down in normal flow instead of overlaying it — every
+   screen's own header/footer stays a real, tappable, unobstructed target
+   whether or not the banner is present. */
+.app-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.screen {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.screen[hidden] {
+  display: none !important;
+}
+
+/* ---------------- STANDBY SCREEN ---------------- */
+
+.standby-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+  cursor: pointer;
+}
+
+.standby-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1100px;
+  height: 1100px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, var(--accent-soft) 0%, rgba(212, 175, 106, 0.05) 35%, transparent 65%);
+  pointer-events: none;
+}
+
+.standby-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+}
+
+.standby-topbar {
+  position: absolute;
+  top: 28px;
+  right: 36px;
+  z-index: 2;
+}
+
+.clock {
+  font-size: 16px;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.standby-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+  padding: 0 32px;
+}
+
+.event-logo-image {
+  width: min(260px, 46vh);
+  height: auto;
+  margin-bottom: 4px;
+  filter: drop-shadow(0 0 40px rgba(200, 155, 75, 0.12));
+  /* Source artwork has a solid square backdrop; feather the edges so it
+     blends into the page background instead of showing a hard box seam. */
+  -webkit-mask-image: radial-gradient(ellipse 68% 68% at center, #000 62%, transparent 100%);
+  mask-image: radial-gradient(ellipse 68% 68% at center, #000 62%, transparent 100%);
+}
+
+.event-year {
+  display: block;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.brand-divider {
+  width: 56px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-deep), transparent);
+  margin: 4px 0;
+}
+
+.round-label {
+  margin: 4px 0 0;
+  font-size: 14px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+  font-weight: 600;
+}
+
+.tap-instruction {
+  margin: 36px 0 0;
+  font-size: 22px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  animation: pulse-fade 2.6s ease-in-out infinite;
+}
+
+@keyframes pulse-fade {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.standby-footer {
+  position: absolute;
+  bottom: 28px;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 36px;
+}
+
+.judge-identity {
+  font-size: 15px;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+/* Connection status (Phase 5, simulated) — deliberately subtle in the two
+   "everything is fine" states (online/synced) and only gets louder for the
+   one state a judge actually needs to notice (offline). Syncing sits
+   between the two, same subdued treatment as online since it's transient
+   and not something to react to either. */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.connection-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-secondary);
+}
+
+.connection-status.is-good .connection-dot {
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(143, 191, 158, 0.5);
+}
+
+.connection-status.is-good .connection-text {
+  color: var(--text-secondary);
+}
+
+.connection-status.is-warning {
+  color: var(--status-error-color);
+  font-weight: 600;
+}
+
+.connection-status.is-warning .connection-dot {
+  background: var(--status-error-color);
+  box-shadow: 0 0 6px rgba(224, 137, 122, 0.5);
+}
+
+/* Non-blocking connectivity notice — lives in the app shell (not inside any
+   one screen) so it appears above whichever screen is active without
+   overlaying/blocking a tap target underneath it. Judging stays fully
+   usable while this is visible; it never becomes a modal. */
+.offline-banner[hidden] {
+  display: none !important;
+}
+
+.offline-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 10px 24px;
+  background: var(--status-draft-bg);
+  border-bottom: 1px solid var(--status-draft-border);
+  font-size: 14px;
+}
+
+.offline-banner-title {
+  font-weight: 700;
+  color: var(--status-draft-color);
+}
+
+.offline-banner-body {
+  color: var(--text-secondary);
+}
+
+/* ---------------- CONTESTANT GALLERY (Phase 2) ---------------- */
+
+.gallery-screen {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.gallery-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 40px 0;
+}
+
+.gallery-event-name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-primary);
+}
+
+.gallery-round {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.gallery-header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.standby-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.standby-action:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.standby-action:active {
+  background: var(--surface-alt);
+}
+
+.standby-action-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+
+.gallery-judge-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.gallery-judge-identity {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.gallery-progress-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.gallery-progress-text #progress-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.progress-bar-track {
+  margin: 14px 40px 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-alt);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.25s ease;
+}
+
+.gallery-titlebar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 40px 16px;
+  flex-wrap: wrap;
+}
+
+.gallery-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.gallery-subtitle {
+  margin: 4px 0 0;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.filter-group {
+  display: flex;
+  gap: 10px;
+}
+
+.filter-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-pill:hover {
+  border-color: var(--border-strong);
+}
+
+.filter-pill.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.filter-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: var(--surface-alt);
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.filter-pill.is-active .filter-count {
+  color: var(--bg-base);
+  background: var(--accent);
+}
+
+.gallery-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 40px 40px;
+}
+
+.contestant-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.contestant-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  font-family: var(--font-ui);
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.08s ease;
+}
+
+.contestant-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-alt);
+}
+
+.contestant-card:active,
+.contestant-card.is-pressed {
+  transform: scale(0.99);
+}
+
+.contestant-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.contestant-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--surface-alt);
+}
+
+.contestant-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.contestant-photo-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  font-weight: 700;
+  color: rgba(246, 241, 232, 0.4);
+}
+
+.contestant-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.contestant-number {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.contestant-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.contestant-country {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+.contestant-status {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 8px;
+  width: fit-content;
+}
+
+.contestant-status .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-not-started {
+  color: var(--text-secondary);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.status-not-started .status-dot {
+  background: var(--text-secondary);
+}
+
+.status-draft {
+  color: var(--status-draft-color);
+  background: var(--status-draft-bg);
+  border: 1px solid var(--status-draft-border);
+}
+
+.status-draft .status-dot {
+  background: var(--status-draft-color);
+}
+
+.status-scored {
+  /* Solid fill, not a tint — this is the one badge that has to read as
+     "done" at a glance across a full grid, so it gets a real green pill
+     instead of the soft translucent treatment the other statuses use. */
+  color: var(--status-scored-text);
+  background: var(--status-scored-fill);
+  border: 1px solid var(--status-scored-fill-border);
+  font-weight: 700;
+  box-shadow: 0 0 10px var(--status-scored-glow);
+}
+
+.status-scored .status-dot {
+  background: var(--status-scored-icon);
+  box-shadow: 0 0 4px var(--status-scored-icon);
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+/* ---------------- PLACEHOLDER SCREENS (Phase 2/3 stubs) ---------------- */
+
+.scoring-screen {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ---- Header ---- */
+
+/* The border/background bar stays full width; the actual row of controls
+   lives in -inner, capped and centered with the same max-width as the
+   body/footer shells below so all three align on desktop. */
+.scoring-header {
+  flex-shrink: 0;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.scoring-header-inner {
+  width: 100%;
+  max-width: var(--scoring-shell-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.scoring-back-btn {
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.scoring-back-btn:hover {
+  border-color: var(--border-strong);
+}
+
+.scoring-back-btn:active {
+  background: var(--surface-alt);
+}
+
+.scoring-round {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+.scoring-position {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 70px;
+  text-align: right;
+}
+
+/* ---- Body: identity panel + scoring panel ---- */
+
+.scoring-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  /* Same shrink-wrap trap as the gallery header: .scoring-screen is a
+     column flex parent, so width:100% has to be explicit here or the
+     auto margins below would shrink this to its content width instead of
+     filling-then-capping. */
+  width: 100%;
+  max-width: var(--scoring-shell-max-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.contestant-panel {
+  /* Identity panel: wide enough that the photo reads clearly, but capped
+     well below the scoring panel so the workspace stays the dominant
+     area — especially on ultrawide monitors, where this stops growing
+     past max-width instead of tracking the screen. */
+  width: 32%;
+  min-width: 300px;
+  max-width: 440px;
+  flex-shrink: 0;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.contestant-panel-photo {
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 3 / 4;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.contestant-panel-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.scoring-identity-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.scoring-number {
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.scoring-name {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.scoring-country {
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.scoring-progress {
+  margin-top: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+/* Same solid-fill treatment as the gallery's "Scored" pill, once this
+   contestant's score sheet is actually complete — kept neutral otherwise
+   so it doesn't falsely read as "done" while criteria are still open. */
+.scoring-progress.is-complete {
+  color: var(--status-scored-text);
+  background: var(--status-scored-fill);
+  border-color: var(--status-scored-fill-border);
+  font-weight: 700;
+  box-shadow: 0 0 10px var(--status-scored-glow);
+}
+
+.total-score-block {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.total-score-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.total-score-value {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--accent-bright);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Never a bare "0" while criteria are missing — this is the visual cue
+   that the number below isn't official yet, so it reads as absent rather
+   than as a (misleadingly low) real score. */
+.total-score-value.is-empty {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.total-score-max {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.scoring-panel {
+  flex: 1;
+  overflow-y: auto;
+  /* Side padding grows with the viewport (capped at 72px) so the
+     workspace breathes more on a wide screen without needing a separate
+     breakpoint just for this. */
+  padding: 28px clamp(32px, 5vw, 72px) 40px;
+}
+
+.scoring-scroll {
+  /* Always centered within whatever room .scoring-panel has — this
+     replaces the old ">=1500px only" flex-centering hack, so the form
+     no longer sits flush left with a huge dead gap on its right at
+     1280-1440px, which is exactly what was happening before. */
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ---- Scoring sections & criteria ---- */
+
+.scoring-section {
+  margin-bottom: 32px;
+}
+
+.scoring-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.scoring-section-heading span:first-child {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.scoring-section-weight {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-bright);
+  font-variant-numeric: tabular-nums;
+}
+
+.criterion-block {
+  margin-bottom: 26px;
+}
+
+.criterion-block:last-child {
+  margin-bottom: 0;
+}
+
+.criterion-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.criterion-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.criterion-weight {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Score control (stepper + manual entry) ---- */
+
+.score-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.score-btn {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.score-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+}
+
+.score-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.score-btn:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+.score-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.score-value {
+  min-width: 160px;
+  text-align: center;
+  font-size: 32px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.score-value:hover {
+  border-color: var(--border);
+  background: var(--surface-alt);
+}
+
+.score-value:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.score-value.is-empty {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.score-value-input {
+  min-width: 160px;
+  width: 160px;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 8px 4px;
+}
+
+.score-value-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.score-value-input.has-error {
+  border-color: var(--status-error-color);
+}
+
+.score-value-input.has-error:focus {
+  box-shadow: 0 0 0 3px rgba(224, 137, 122, 0.22);
+}
+
+.score-error {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--status-error-color);
+}
+
+/* ---- Quick score experiment (Confidence only) ---- */
+
+.quick-score-row {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quick-score-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-right: 4px;
+}
+
+.quick-score-btn {
+  min-width: 48px;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.quick-score-btn:hover {
+  border-color: var(--border-strong);
+}
+
+.quick-score-btn.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+/* ---- Note ---- */
+
+.add-note-btn {
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.add-note-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-deep);
+}
+
+.note-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.note-textarea {
+  min-height: 90px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  resize: vertical;
+}
+
+.note-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ---- Footer ---- */
+
+/* Background/border bar stays full width; -inner mirrors the same
+   max-width shell as header/body, and its two slots mirror
+   contestant-panel / scoring-panel's own widths exactly, so Previous
+   lands under the identity column and Save & Next lands under the
+   scoring column instead of both anchoring to the raw viewport edges. */
+.scoring-footer {
+  flex-shrink: 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.scoring-footer-inner {
+  width: 100%;
+  max-width: var(--scoring-shell-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.footer-slot-contestant {
+  width: 32%;
+  min-width: 300px;
+  max-width: 440px;
+  flex-shrink: 0;
+}
+
+.footer-slot-scoring {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.scoring-nav-btn {
+  min-height: 56px;
+  padding: 0 26px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scoring-nav-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.scoring-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.scoring-nav-btn-primary {
+  background: var(--accent-soft);
+  border-color: var(--accent-deep);
+  color: var(--text-primary);
+}
+
+.scoring-nav-btn-primary:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.save-status {
+  font-size: 15px;
+  font-weight: 600;
+  /* Plain text, not a filled pill, so it uses the bright mint (not the
+     solid fill color, which is tuned for contrast against itself, not
+     against the dark page background). */
+  color: var(--status-scored-icon);
+  font-variant-numeric: tabular-nums;
+}
+
+.save-status.is-saving {
+  color: var(--text-secondary);
+}
+
+/* Dev-panel-only simulated failure — has to read as urgent (unlike the
+   calm, ignorable "Saved ✓") since a judge needs to notice this one, but
+   still restrained: warm coral, not a shouting red, matching the same
+   error tone used for score-input validation elsewhere. */
+.save-status.is-error {
+  color: var(--status-error-color);
+}
+
+/* ---------------- GALLERY: REVIEW CTA + SUBMITTED BANNER (Phase 4) ---------------- */
+
+.review-cta-btn {
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-deep);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.review-cta-btn:hover {
+  border-color: var(--accent);
+}
+
+.review-cta-btn:active {
+  background: var(--accent-soft);
+  transform: scale(0.99);
+}
+
+.submitted-banner[hidden] {
+  display: none !important;
+}
+
+.submitted-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 40px 0;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--status-scored-fill);
+  color: var(--status-scored-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.submitted-banner-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-scored-icon);
+  flex-shrink: 0;
+}
+
+/* ---------------- REVIEW & SUBMIT (Phase 4) ---------------- */
+
+.review-screen {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.review-header {
+  flex-shrink: 0;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.review-header-inner {
+  width: 100%;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.review-round {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+.review-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Kept narrower than the 1600px scoring shell — this page is a checklist,
+   not a workspace, so it doesn't need to chase the monitor width. */
+.review-container {
+  width: 100%;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 32px 32px 140px;
+}
+
+.review-title {
+  margin: 0 0 20px;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.review-summary-panel {
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 22px 24px;
+  margin-bottom: 20px;
+}
+
+.review-summary-panel.is-ready {
+  border-color: var(--status-scored-fill-border);
+}
+
+.review-summary-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.review-summary-count {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.review-summary-panel.is-ready .review-summary-count {
+  color: var(--status-scored-icon);
+}
+
+.review-progress-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-alt);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.review-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.review-summary-panel.is-ready .review-progress-fill {
+  background: var(--status-scored-fill);
+}
+
+.review-summary-note {
+  margin: 0 0 16px;
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.review-status-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.review-status-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.review-status-count .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.review-status-count-scored {
+  color: var(--status-scored-text);
+  background: var(--status-scored-fill);
+  border: 1px solid var(--status-scored-fill-border);
+}
+
+.review-status-count-scored .status-dot {
+  background: var(--status-scored-icon);
+}
+
+.review-status-count-draft {
+  color: var(--status-draft-color);
+  background: var(--status-draft-bg);
+  border: 1px solid var(--status-draft-border);
+}
+
+.review-status-count-draft .status-dot {
+  background: var(--status-draft-color);
+}
+
+.review-status-count-not-started {
+  color: var(--text-secondary);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.review-status-count-not-started .status-dot {
+  background: var(--text-secondary);
+}
+
+.review-filter-group {
+  margin-bottom: 18px;
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.review-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 140px;
+  align-items: center;
+  gap: 24px;
+  min-height: 88px;
+  padding: 16px 20px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  text-align: left;
+  color: inherit;
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+.review-row:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-alt);
+}
+
+.review-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- Column 1: identity (photo + number/name/country/substatus) ---- */
+
+.review-row-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.review-row-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.review-row-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.review-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.review-row-name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.review-row-number {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.review-row-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-row-country {
+  font-size: 14px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Inline text only for Draft/Not Scored — Scored carries its status as the
+   solid badge in the action column instead, so it's omitted here. */
+.review-row-substatus {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.review-row-substatus.is-draft {
+  color: var(--status-draft-color);
+}
+
+.review-row-substatus.is-not-started {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ---- Column 2: this judge's Total Score (never a leaderboard number) ---- */
+
+.review-row-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.review-row-score-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.review-row-score-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.review-row-score-value.is-empty {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.review-row-score-max {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ---- Column 3: status badge (Scored) or action button (Draft/Not Scored) ---- */
+
+.review-row-action-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.review-row-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  min-height: 48px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--status-scored-text);
+  background: var(--status-scored-fill);
+  border: 1px solid var(--status-scored-fill-border);
+  box-shadow: 0 0 10px var(--status-scored-glow);
+}
+
+.review-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  min-height: 48px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-deep);
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.review-row:hover .review-row-action {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.review-empty-state {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+/* ---- Sticky submit/complete action ---- */
+
+.review-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.review-footer-inner {
+  width: 100%;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.review-footer-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.review-footer-count {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.review-footer-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.review-footer-btn {
+  min-height: 56px;
+  padding: 0 32px;
+  border-radius: 12px;
+  border: 1px solid var(--accent-deep);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.review-footer-btn:hover {
+  border-color: var(--accent);
+}
+
+.review-footer-btn.is-ready {
+  background: var(--status-scored-fill);
+  border-color: var(--status-scored-fill-border);
+  color: var(--status-scored-text);
+}
+
+.review-footer-note {
+  width: 100%;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* ---------------- SUBMIT CONFIRMATION MODAL (Phase 4) ---------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 4, 4, 0.72);
+}
+
+.modal-backdrop[hidden] {
+  display: none !important;
+}
+
+.modal-panel {
+  width: 100%;
+  max-width: 520px;
+  border-radius: 18px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  padding: 32px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.modal-title {
+  margin: 0 0 14px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.modal-title-error {
+  color: var(--status-error-color);
+}
+
+.modal-body {
+  margin: 0 0 12px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.modal-body-secondary {
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.modal-btn {
+  min-height: 52px;
+  padding: 0 24px;
+  border-radius: 12px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modal-btn-secondary {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.modal-btn-secondary:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.modal-btn-primary {
+  border: 1px solid var(--accent-deep);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.modal-btn-primary:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.modal-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------------- SUBMITTED SCREEN (Phase 4) ---------------- */
+
+.submitted-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+}
+
+.submitted-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 32px;
+  max-width: 480px;
+}
+
+.submitted-check {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--status-scored-text);
+  background: var(--status-scored-fill);
+  border: 1px solid var(--status-scored-fill-border);
+  box-shadow: 0 0 24px var(--status-scored-glow);
+  margin-bottom: 12px;
+}
+
+.submitted-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.submitted-round {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+.submitted-stat {
+  margin: 18px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.submitted-time {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.submitted-lock-note {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.submitted-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  margin-top: 28px;
+}
+
+.submitted-actions .scoring-nav-btn {
+  width: 100%;
+}
+
+/* ---------------- SCORING PAGE: READ-ONLY LOCK (Phase 4) ---------------- */
+
+.scoring-lock-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--status-scored-fill);
+  color: var(--status-scored-text);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.scoring-lock-badge {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+/* ---------------- STANDBY: SUBMITTED NOTE (Phase 4) ---------------- */
+
+.standby-submitted-note {
+  margin: -8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--status-scored-icon);
+}
+
+/* ---------------- RESPONSIVE ---------------- */
+
+/* Laptop / desktop browser: keep content centered, cap width */
+@media (min-width: 1024px) and (orientation: landscape) {
+  .event-logo-image {
+    width: min(300px, 46vh);
+  }
+}
+
+/* Large desktop: cap gallery content to one shared container so the header,
+   toolbar and grid all align to the same left/right edges instead of the
+   grid (which has flex:1 and fills correctly) stretching wider than the
+   header/toolbar (which don't, and were shrinking to fit their content —
+   see the width:100% note below). */
+@media (min-width: 1200px) {
+  .gallery-header,
+  .submitted-banner,
+  .progress-bar-track,
+  .gallery-titlebar,
+  .gallery-scroll {
+    /* .gallery-screen is `display:flex; flex-direction:column`, so these
+       are flex items on their cross axis (horizontal). A flex item with
+       auto margins on its cross axis skips the default stretch-to-fill
+       behavior and shrink-wraps to its content instead — that's what was
+       collapsing the header to a narrow, visually "centered" cluster
+       while max-width/margin:auto sat unused above it. Pairing an
+       explicit width:100% keeps the item filling the container (up to
+       max-width) so the auto margins have real leftover space to center
+       within, instead of nothing to center in the first place. */
+    /* Keep each element's own 40px side padding as-is (don't zero it) —
+       box-sizing:border-box means width:100% already includes that
+       padding, so it doubles as the gutter both below 1500px (where
+       width:100% just fills the viewport, padding is the only inset) and
+       above it (where max-width caps the box and margin:auto centers it,
+       padding still insets the content inside that centered box). Zeroing
+       it out here was the earlier bug: gutter came from the auto margins,
+       which are 0 whenever the viewport is under 1500px. */
+    width: 100%;
+    max-width: 1500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .gallery-header {
+    padding-top: 22px;
+  }
+}
+
+/* Wider laptop/desktop: allow a 5th column when there's room */
+@media (min-width: 1680px) {
+  .contestant-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+/* Narrower landscape tablets: drop to 3 columns to keep cards comfortably large */
+@media (max-width: 1100px) and (orientation: landscape) {
+  .contestant-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Tablet portrait: stack tighter, slightly smaller type */
+@media (orientation: portrait) {
+  .event-logo-image {
+    width: min(200px, 30vh);
+  }
+
+  .event-year {
+    font-size: 15px;
+  }
+
+  .tap-instruction {
+    font-size: 20px;
+    margin-top: 28px;
+  }
+
+  .standby-footer {
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    bottom: 24px;
+  }
+
+  .gallery-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 20px 20px 0;
+  }
+
+  .gallery-header-right {
+    justify-content: space-between;
+  }
+
+  .gallery-judge-block {
+    align-items: flex-start;
+  }
+
+  .progress-bar-track {
+    margin: 14px 20px 0;
+  }
+
+  .gallery-titlebar {
+    padding: 18px 20px 14px;
+    align-items: flex-start;
+  }
+
+  .filter-group {
+    width: 100%;
+  }
+
+  .filter-pill {
+    flex: 1;
+    justify-content: center;
+    padding: 0 12px;
+  }
+
+  .gallery-scroll {
+    padding: 0 20px 32px;
+  }
+
+  .contestant-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  /* Scoring page: stack identity above criteria instead of side-by-side,
+     and let the whole body scroll as one instead of two nested scroll areas. */
+  .scoring-header {
+    padding: 16px 0;
+  }
+
+  .scoring-header-inner {
+    padding: 0 20px;
+  }
+
+  .scoring-body {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .contestant-panel {
+    width: 100%;
+    max-width: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    text-align: left;
+    align-items: center;
+    gap: 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-y: visible;
+    padding: 16px 20px;
+  }
+
+  /* Total Score drops to its own full-width row instead of squeezing into
+     the photo/name/progress row — keeps every element there readable
+     instead of shrinking four flex items into a narrow viewport. */
+  .total-score-block {
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 4px;
+    padding-top: 12px;
+  }
+
+  .contestant-panel-photo {
+    max-width: 112px;
+    aspect-ratio: 3 / 4;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+
+  .scoring-identity-text {
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  /* Desktop's hero-sized identity text (34/24/16) is too large next to a
+     112px portrait thumbnail in this row layout — scale it back down
+     without shrinking the photo bump above. */
+  .scoring-number {
+    font-size: 26px;
+  }
+
+  .scoring-name {
+    font-size: 18px;
+  }
+
+  .scoring-country {
+    font-size: 14px;
+  }
+
+  .scoring-progress {
+    margin-top: 0;
+    align-self: center;
+    flex-shrink: 0;
+  }
+
+  .scoring-panel {
+    overflow-y: visible;
+    padding: 20px 20px 32px;
+  }
+
+  .scoring-scroll {
+    max-width: none;
+  }
+
+  .scoring-footer {
+    padding: 14px 0;
+  }
+
+  /* Collapse the desktop two-slot split (Previous | Saved+Next) back into
+     one plain row of three items, same as before the desktop footer
+     rework — the proportional slot widths only make sense next to a
+     side-by-side body layout, which portrait doesn't have. display:contents
+     drops the slot boxes from layout while keeping their children as
+     direct flex items of -inner, so space-between spreads all three
+     evenly like the original single-row footer did. */
+  .scoring-footer-inner {
+    padding: 0 20px;
+    justify-content: space-between;
+  }
+
+  .footer-slot-contestant,
+  .footer-slot-scoring {
+    display: contents;
+  }
+
+  .scoring-nav-btn {
+    padding: 0 16px;
+    font-size: 15px;
+  }
+
+  /* Review & Submit: tighter side padding, and let each row's action
+     button drop to its own full-width line instead of squeezing into
+     the same row as name/status — matches the stacked row shape the
+     brief asked for on tablet portrait. */
+  .review-header-inner {
+    padding: 0 20px;
+  }
+
+  .review-container {
+    padding: 24px 20px 160px;
+  }
+
+  .review-title {
+    font-size: 22px;
+  }
+
+  /* Portrait: stack identity / score / action instead of forcing the
+     3-column desktop grid into a narrow viewport. */
+  .review-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    min-height: 0;
+  }
+
+  .review-row-score {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .review-row-action-col {
+    justify-content: stretch;
+  }
+
+  .review-row-action,
+  .review-row-badge {
+    width: 100%;
+  }
+
+  .review-footer-inner {
+    padding: 14px 20px;
+  }
+
+  .submitted-content {
+    padding: 24px;
+  }
+}
+
+/* Small phones (not a target device, but avoid breakage) */
+@media (max-width: 480px) {
+  .event-logo-image {
+    width: min(160px, 26vh);
+  }
+
+  .event-year {
+    font-size: 13px;
+    letter-spacing: 0.25em;
+  }
+
+  .standby-content {
+    gap: 14px;
+  }
+
+  .gallery-event-name {
+    font-size: 18px;
+  }
+
+  .gallery-title {
+    font-size: 24px;
+  }
+}
+
+/* ================================================================
+   PROTOTYPE CONTROLS (Phase 5 dev panel)
+   Deliberately styled to look like a debug tool, not part of the judge
+   product — monospace label, dashed border, sits outside the app shell so
+   it floats above every screen without affecting their layout. Never
+   shown in a production build; exists only so connection/failure/timeout
+   states can be reviewed without real network, storage or backend.
+   ================================================================ */
+
+.dev-panel {
+  flex-shrink: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.dev-panel-toggle {
+  display: block;
+  width: 100%;
+  height: 32px;
+  padding: 0 16px;
+  border: none;
+  border-bottom: 1px dashed rgba(184, 168, 155, 0.35);
+  background: rgba(18, 9, 10, 0.96);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dev-panel-body {
+  padding: 14px 16px;
+  border-bottom: 1px dashed rgba(184, 168, 155, 0.35);
+  background: rgba(18, 9, 10, 0.96);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.dev-panel-heading {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.dev-panel-heading:first-child {
+  margin-top: 0;
+}
+
+.dev-panel-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dev-panel-btn {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.dev-panel-btn:hover {
+  border-color: var(--border-strong);
+}
+
+.dev-panel-btn.is-active {
+  border-color: var(--status-error-color);
+  color: var(--status-error-color);
+}
+
+/* Touch-friendly on a real tablet too, even though this control never
+   ships — an underlying interaction bug here could still hide/confuse a
+   reviewer testing on the reference device. */
+@media (pointer: coarse) {
+  .dev-panel-btn {
+    min-height: 44px;
+  }
+}

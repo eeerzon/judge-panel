@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>King &amp; Queen of the Pacific — Judge Panel</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- App shell: wraps every screen so the offline banner can push content
+       down in normal document flow (never overlaying/blocking a tap target)
+       instead of floating on top of whichever screen is active. -->
+  <div class="app-shell" id="app-shell">
+
+  <!-- Prototype-only, non-blocking connectivity notice. Shown/hidden by
+       app.js based on the simulated connection state — see Phase 5 notes
+       in PROTOTYPE-NOTES.md. Never a modal: judging must stay usable while
+       offline, so this is just an informational strip judges can ignore. -->
+  <div id="offline-banner" class="offline-banner" role="status" hidden>
+    <span class="offline-banner-title">No connection</span>
+    <span class="offline-banner-body">Your scores are safe on this device and will sync when connection returns.</span>
+  </div>
+
+  <!-- ============ PROTOTYPE CONTROLS (dev-only, not part of the judge UI) ============ -->
+  <!-- Simulates device/network states a real tablet would report on its own,
+       so these states can be reviewed without wiring up real connectivity,
+       storage or a backend. Lives in the app-shell's normal document flow
+       (like the offline banner above) rather than a fixed overlay, so it
+       can never sit on top of a real screen's own header/footer buttons —
+       expanding it just pushes the active screen down a bit further.
+       Never shown to an actual judge / not part of the production build. -->
+  <div id="dev-panel" class="dev-panel is-collapsed">
+    <button id="dev-panel-toggle" class="dev-panel-toggle" type="button" aria-expanded="false">⚙ Prototype Controls</button>
+    <div id="dev-panel-body" class="dev-panel-body" hidden>
+      <p class="dev-panel-heading">Connection (simulated)</p>
+      <div class="dev-panel-row">
+        <button class="dev-panel-btn" type="button" data-connection="online">Online</button>
+        <button class="dev-panel-btn" type="button" data-connection="offline">Offline</button>
+        <button class="dev-panel-btn" type="button" data-connection="syncing">Syncing</button>
+        <button class="dev-panel-btn" type="button" data-connection="synced">Synced</button>
+      </div>
+      <p class="dev-panel-heading">Failure simulation</p>
+      <div class="dev-panel-row">
+        <button class="dev-panel-btn" id="dev-toggle-save-failure" type="button">Save failure: Off</button>
+        <button class="dev-panel-btn" id="dev-toggle-submit-failure" type="button">Submit failure: Off</button>
+      </div>
+      <p class="dev-panel-heading">Standby timeout (simulated, <span id="dev-timeout-value">45</span>s idle)</p>
+      <div class="dev-panel-row">
+        <button class="dev-panel-btn" id="dev-force-standby" type="button">Force Standby Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 1: STANDBY ============ -->
+  <main id="standby-screen" class="screen standby-screen" role="button" tabindex="0" aria-label="Tap anywhere to start judging">
+    <div class="standby-glow" aria-hidden="true"></div>
+    <div class="standby-vignette" aria-hidden="true"></div>
+
+    <div class="standby-topbar">
+      <span class="clock" id="clock">20:14</span>
+    </div>
+
+    <div class="standby-content">
+      <img class="event-logo-image" src="assets/kqp-logo.png" alt="King &amp; Queen of the Pacific" />
+
+      <p class="event-year">2026</p>
+
+      <div class="brand-divider" aria-hidden="true"></div>
+
+      <p class="round-label">Preliminary</p>
+
+      <p class="standby-submitted-note" id="standby-submitted-note" hidden>Judging Submitted</p>
+
+      <p class="tap-instruction">Tap anywhere to start</p>
+    </div>
+
+    <div class="standby-footer">
+      <span class="judge-identity">Judge 03 · Amanda Wijaya</span>
+      <span class="connection-status" id="standby-connection-status">
+        <span class="connection-dot" aria-hidden="true"></span>
+        <span class="connection-text">Synced</span>
+      </span>
+    </div>
+  </main>
+
+  <!-- ============ SCREEN 2: CONTESTANT GALLERY ============ -->
+  <main id="gallery-screen" class="screen gallery-screen" hidden>
+    <header class="gallery-header">
+      <div class="gallery-header-left">
+        <h1 class="gallery-event-name">King &amp; Queen of the Pacific</h1>
+        <p class="gallery-round">Preliminary</p>
+      </div>
+
+      <div class="gallery-header-right">
+        <button id="review-cta-btn" class="review-cta-btn" type="button">Review & Submit</button>
+        <button id="standby-action" class="standby-action" type="button">
+          <span class="standby-action-dot" aria-hidden="true"></span>
+          Standby
+        </button>
+        <div class="gallery-judge-block">
+          <span class="gallery-judge-identity">Judge 03 · Amanda Wijaya</span>
+          <span class="gallery-progress-text"><span id="progress-count">3 / 12</span> scored</span>
+        </div>
+        <span class="connection-status" id="gallery-connection-status">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="connection-text">Synced</span>
+        </span>
+      </div>
+    </header>
+
+    <div class="submitted-banner" id="gallery-submitted-banner" hidden>
+      <span class="submitted-banner-dot" aria-hidden="true"></span>
+      Judging Submitted
+    </div>
+
+    <div class="progress-bar-track" aria-hidden="true">
+      <div class="progress-bar-fill" id="progress-bar-fill"></div>
+    </div>
+
+    <div class="gallery-titlebar">
+      <div>
+        <h2 class="gallery-title">Contestants</h2>
+        <p class="gallery-subtitle">Tap a contestant to enter scores.</p>
+      </div>
+
+      <div class="filter-group" role="tablist" aria-label="Filter contestants">
+        <button class="filter-pill is-active" type="button" data-filter="all" role="tab" aria-selected="true">
+          All <span class="filter-count" id="count-all">12</span>
+        </button>
+        <button class="filter-pill" type="button" data-filter="to-score" role="tab" aria-selected="false">
+          To Score <span class="filter-count" id="count-to-score">9</span>
+        </button>
+        <button class="filter-pill" type="button" data-filter="scored" role="tab" aria-selected="false">
+          Scored <span class="filter-count" id="count-scored">3</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="gallery-scroll">
+      <div class="contestant-grid" id="contestant-grid" role="list">
+        <!-- cards injected by app.js -->
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ SCREEN 3: SCORING PAGE ============ -->
+  <main id="scoring-screen" class="screen scoring-screen" hidden>
+    <header class="scoring-header">
+      <div class="scoring-header-inner">
+        <button id="scoring-back" class="scoring-back-btn" type="button">← Contestants</button>
+        <span class="scoring-round">Preliminary</span>
+        <span class="scoring-position" id="scoring-position">01 / 15</span>
+      </div>
+    </header>
+
+    <div class="scoring-body">
+      <aside class="contestant-panel">
+        <div class="contestant-panel-photo">
+          <img id="scoring-photo" src="" alt="" />
+        </div>
+        <div class="scoring-identity-text">
+          <span class="scoring-number" id="scoring-number">#01</span>
+          <span class="scoring-name" id="scoring-name">—</span>
+          <span class="scoring-country" id="scoring-country">—</span>
+        </div>
+        <span class="scoring-progress" id="scoring-progress">0 of 5 criteria scored</span>
+
+        <div class="total-score-block" id="total-score-block">
+          <span class="total-score-label" id="total-score-label">Total Score</span>
+          <span class="total-score-value" id="total-score-value">—</span>
+          <span class="total-score-max">/ 100</span>
+        </div>
+      </aside>
+
+      <section class="scoring-panel">
+        <div class="scoring-scroll" id="scoring-scroll">
+          <!-- sections injected by app.js -->
+        </div>
+      </section>
+    </div>
+
+    <footer class="scoring-footer">
+      <div class="scoring-footer-inner">
+        <div class="footer-slot-contestant">
+          <button id="scoring-prev" class="scoring-nav-btn" type="button">← Previous</button>
+        </div>
+        <div class="footer-slot-scoring">
+          <span class="save-status" id="save-status">Saved ✓</span>
+          <button id="scoring-next" class="scoring-nav-btn scoring-nav-btn-primary" type="button">Save &amp; Next →</button>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <!-- ============ SCREEN 4: REVIEW & SUBMIT ============ -->
+  <main id="review-screen" class="screen review-screen" hidden>
+    <header class="review-header">
+      <div class="review-header-inner">
+        <button id="review-back" class="scoring-back-btn" type="button">← Contestants</button>
+        <span class="review-round">Preliminary</span>
+      </div>
+    </header>
+
+    <div class="review-body">
+      <div class="review-container">
+        <h1 class="review-title" id="review-title">Review Your Judging</h1>
+
+        <div class="review-summary-panel" id="review-summary-panel">
+          <!-- injected by app.js -->
+        </div>
+
+        <div class="filter-group review-filter-group" id="review-filter-group" role="tablist" aria-label="Filter review list">
+          <button class="filter-pill is-active" type="button" data-review-filter="all" role="tab" aria-selected="true">
+            All <span class="filter-count" id="review-count-all">15</span>
+          </button>
+          <button class="filter-pill" type="button" data-review-filter="attention" role="tab" aria-selected="false">
+            Needs Attention <span class="filter-count" id="review-count-attention">0</span>
+          </button>
+          <button class="filter-pill" type="button" data-review-filter="scored" role="tab" aria-selected="false">
+            Scored <span class="filter-count" id="review-count-scored">0</span>
+          </button>
+        </div>
+
+        <div class="review-list" id="review-list" role="list">
+          <!-- rows injected by app.js -->
+        </div>
+      </div>
+    </div>
+
+    <footer class="review-footer" id="review-footer">
+      <!-- injected by app.js -->
+    </footer>
+  </main>
+
+  <!-- ============ SCREEN 5: SUBMITTED ============ -->
+  <main id="submitted-screen" class="screen submitted-screen" hidden>
+    <div class="submitted-content">
+      <div class="submitted-check" aria-hidden="true">✓</div>
+      <h1 class="submitted-title">Judging Submitted</h1>
+      <p class="submitted-round">Preliminary</p>
+      <p class="submitted-stat" id="submitted-stat">15 contestants scored</p>
+      <p class="submitted-time" id="submitted-time">Submitted at 21:42</p>
+      <p class="submitted-lock-note">Your scores are now locked.</p>
+
+      <div class="submitted-actions">
+        <button id="submitted-return-standby" class="scoring-nav-btn scoring-nav-btn-primary" type="button">Return to Standby</button>
+        <button id="submitted-view-scores" class="scoring-nav-btn" type="button">View Submitted Scores</button>
+      </div>
+    </div>
+  </main>
+
+  </div> <!-- /.app-shell -->
+
+  <!-- ============ MODAL: SUBMIT CONFIRMATION ============ -->
+  <!-- Two mutually-exclusive bodies (confirm vs. failed) swapped via a
+       shared `hidden` toggle in app.js — see openSubmitModal()/handleSubmitConfirm(). -->
+  <div id="submit-modal-backdrop" class="modal-backdrop" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="submit-modal-title">
+      <div id="submit-modal-confirm-body">
+        <h2 class="modal-title" id="submit-modal-title">Submit Preliminary Judging?</h2>
+        <p class="modal-body" id="submit-modal-body">You have scored all 15 contestants.</p>
+        <p class="modal-body modal-body-secondary">After submitting, your scores will be locked and can no longer be changed.</p>
+        <div class="modal-actions">
+          <button id="modal-cancel" class="modal-btn modal-btn-secondary" type="button">Cancel</button>
+          <button id="modal-confirm" class="modal-btn modal-btn-primary" type="button">Submit Scores</button>
+        </div>
+      </div>
+      <div id="submit-modal-failed-body" hidden>
+        <h2 class="modal-title modal-title-error">Submission failed</h2>
+        <p class="modal-body">Your scores are still safe. Please try again.</p>
+        <div class="modal-actions">
+          <button id="modal-failed-retry" class="modal-btn modal-btn-primary" type="button">Try Again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="app.js"></script>
+</body>
+</html>

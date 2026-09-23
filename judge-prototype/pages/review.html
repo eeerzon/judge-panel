@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Review &amp; Submit — King &amp; Queen of the Pacific</title>
+<link rel="stylesheet" href="../assets/css/tokens.css" />
+<link rel="stylesheet" href="../assets/css/components.css" />
+<link rel="stylesheet" href="../assets/css/pages.css" />
+</head>
+<body>
+  <div class="app-shell" id="app-shell">
+
+    <div id="preview-banner" class="preview-banner" hidden>Prototype Preview — viewing without normal state guards</div>
+
+    <div id="offline-banner" class="offline-banner" role="status" hidden>
+      <span class="offline-banner-title">No connection</span>
+      <span class="offline-banner-body">Your scores are safe on this device and will sync when connection returns.</span>
+    </div>
+
+    <div id="dev-panel" class="dev-panel is-collapsed">
+      <button id="dev-panel-toggle" class="dev-panel-toggle" type="button" aria-expanded="false">⚙ Prototype Controls</button>
+      <div id="dev-panel-body" class="dev-panel-body" hidden>
+        <p class="dev-panel-heading">Connection (simulated)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" type="button" data-connection="online">Online</button>
+          <button class="dev-panel-btn" type="button" data-connection="offline">Offline</button>
+          <button class="dev-panel-btn" type="button" data-connection="syncing">Syncing</button>
+          <button class="dev-panel-btn" type="button" data-connection="synced">Synced</button>
+        </div>
+        <p class="dev-panel-heading">Failure simulation</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-toggle-save-failure" type="button">Save failure: Off</button>
+          <button class="dev-panel-btn" id="dev-toggle-submit-failure" type="button">Submit failure: Off</button>
+        </div>
+        <p class="dev-panel-heading">Standby timeout (simulated, <span id="dev-timeout-value">45</span>s idle)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-force-standby" type="button">Force Standby Now</button>
+          <button class="dev-panel-btn" id="dev-reset-prototype" type="button">Reset Prototype</button>
+        </div>
+      </div>
+    </div>
+
+    <main id="review-screen" class="screen review-screen">
+      <header class="review-header">
+        <div class="review-header-inner">
+          <button id="review-back" class="scoring-back-btn" type="button">← Contestants</button>
+          <span class="review-round" id="review-round">Preliminary</span>
+        </div>
+      </header>
+
+      <div class="review-body">
+        <div class="review-container">
+          <h1 class="review-title" id="review-title">Review Your Judging</h1>
+
+          <div class="review-summary-panel" id="review-summary-panel">
+            <!-- injected by review.js -->
+          </div>
+
+          <div class="filter-group review-filter-group" id="review-filter-group" role="tablist" aria-label="Filter review list">
+            <button class="filter-pill is-active" type="button" data-review-filter="all" role="tab" aria-selected="true">
+              All <span class="filter-count" id="review-count-all">15</span>
+            </button>
+            <button class="filter-pill" type="button" data-review-filter="attention" role="tab" aria-selected="false">
+              Needs Attention <span class="filter-count" id="review-count-attention">0</span>
+            </button>
+            <button class="filter-pill" type="button" data-review-filter="scored" role="tab" aria-selected="false">
+              Scored <span class="filter-count" id="review-count-scored">0</span>
+            </button>
+          </div>
+
+          <div class="review-list" id="review-list" role="list">
+            <!-- rows injected by review.js -->
+          </div>
+        </div>
+      </div>
+
+      <footer class="review-footer" id="review-footer">
+        <!-- injected by review.js -->
+      </footer>
+    </main>
+
+  </div>
+
+  <!-- ============ MODAL: SUBMIT CONFIRMATION ============ -->
+  <div id="submit-modal-backdrop" class="modal-backdrop" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="submit-modal-title">
+      <div id="submit-modal-confirm-body">
+        <h2 class="modal-title" id="submit-modal-title">Submit Preliminary Judging?</h2>
+        <p class="modal-body" id="submit-modal-body">You have scored all 15 contestants.</p>
+        <p class="modal-body modal-body-secondary">After submitting, your scores will be locked and can no longer be changed.</p>
+        <div class="modal-actions">
+          <button id="modal-cancel" class="modal-btn modal-btn-secondary" type="button">Cancel</button>
+          <button id="modal-confirm" class="modal-btn modal-btn-primary" type="button">Submit Scores</button>
+        </div>
+      </div>
+      <div id="submit-modal-failed-body" hidden>
+        <h2 class="modal-title modal-title-error">Submission failed</h2>
+        <p class="modal-body">Your scores are still safe. Please try again.</p>
+        <div class="modal-actions">
+          <button id="modal-failed-retry" class="modal-btn modal-btn-primary" type="button">Try Again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/mock-data.js"></script>
+  <script src="../assets/js/state.js"></script>
+  <script src="../assets/js/navigation.js"></script>
+  <script src="../assets/js/chrome.js"></script>
+  <script src="../assets/js/review.js"></script>
+</body>
+</html>

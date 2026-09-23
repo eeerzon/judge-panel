@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Scoring — King &amp; Queen of the Pacific</title>
+<link rel="stylesheet" href="../assets/css/tokens.css" />
+<link rel="stylesheet" href="../assets/css/components.css" />
+<link rel="stylesheet" href="../assets/css/pages.css" />
+</head>
+<body>
+  <div class="app-shell" id="app-shell">
+
+    <div id="preview-banner" class="preview-banner" hidden>Prototype Preview — viewing without normal state guards</div>
+
+    <div id="offline-banner" class="offline-banner" role="status" hidden>
+      <span class="offline-banner-title">No connection</span>
+      <span class="offline-banner-body">Your scores are safe on this device and will sync when connection returns.</span>
+    </div>
+
+    <div id="dev-panel" class="dev-panel is-collapsed">
+      <button id="dev-panel-toggle" class="dev-panel-toggle" type="button" aria-expanded="false">⚙ Prototype Controls</button>
+      <div id="dev-panel-body" class="dev-panel-body" hidden>
+        <p class="dev-panel-heading">Connection (simulated)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" type="button" data-connection="online">Online</button>
+          <button class="dev-panel-btn" type="button" data-connection="offline">Offline</button>
+          <button class="dev-panel-btn" type="button" data-connection="syncing">Syncing</button>
+          <button class="dev-panel-btn" type="button" data-connection="synced">Synced</button>
+        </div>
+        <p class="dev-panel-heading">Failure simulation</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-toggle-save-failure" type="button">Save failure: Off</button>
+          <button class="dev-panel-btn" id="dev-toggle-submit-failure" type="button">Submit failure: Off</button>
+        </div>
+        <p class="dev-panel-heading">Standby timeout (simulated, <span id="dev-timeout-value">45</span>s idle)</p>
+        <div class="dev-panel-row">
+          <button class="dev-panel-btn" id="dev-force-standby" type="button">Force Standby Now</button>
+          <button class="dev-panel-btn" id="dev-reset-prototype" type="button">Reset Prototype</button>
+        </div>
+      </div>
+    </div>
+
+    <main id="scoring-screen" class="screen scoring-screen">
+      <header class="scoring-header">
+        <div class="scoring-header-inner">
+          <button id="scoring-back" class="scoring-back-btn" type="button">← Contestants</button>
+          <span class="scoring-round" id="scoring-round">Preliminary</span>
+          <span class="scoring-position" id="scoring-position">01 / 15</span>
+        </div>
+      </header>
+
+      <div class="scoring-body">
+        <aside class="contestant-panel">
+          <div class="contestant-panel-photo">
+            <img id="scoring-photo" src="" alt="" />
+          </div>
+          <div class="scoring-identity-text">
+            <span class="scoring-number" id="scoring-number">#01</span>
+            <span class="scoring-name" id="scoring-name">—</span>
+            <span class="scoring-country" id="scoring-country">—</span>
+          </div>
+          <span class="scoring-progress" id="scoring-progress">0 of 5 criteria scored</span>
+
+          <div class="total-score-block" id="total-score-block">
+            <span class="total-score-label" id="total-score-label">Total Score</span>
+            <span class="total-score-value" id="total-score-value">—</span>
+            <span class="total-score-max">/ 100</span>
+          </div>
+        </aside>
+
+        <section class="scoring-panel">
+          <div class="scoring-scroll" id="scoring-scroll">
+            <!-- sections injected by scoring.js -->
+          </div>
+        </section>
+      </div>
+
+      <footer class="scoring-footer">
+        <div class="scoring-footer-inner">
+          <div class="footer-slot-contestant">
+            <button id="scoring-prev" class="scoring-nav-btn" type="button">← Previous</button>
+          </div>
+          <div class="footer-slot-scoring">
+            <span class="save-status" id="save-status">Saved ✓</span>
+            <button id="scoring-next" class="scoring-nav-btn scoring-nav-btn-primary" type="button">Save &amp; Next →</button>
+          </div>
+        </div>
+      </footer>
+    </main>
+
+  </div>
+
+  <script src="../assets/js/mock-data.js"></script>
+  <script src="../assets/js/state.js"></script>
+  <script src="../assets/js/navigation.js"></script>
+  <script src="../assets/js/chrome.js"></script>
+  <script src="../assets/js/scoring.js"></script>
+</body>
+</html>
