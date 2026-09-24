@@ -1,12 +1,14 @@
 # Judge Panel Prototype — Handoff
 
 **Client:** King & Queen of the Pacific 2026 (pageant, Preliminary round)
-**What this is:** a click-through interaction/visual prototype for a tablet-based judge scoring app — **multi-page HTML, double-click portable**. No backend, no build step, no server requirement — open `index.html` (a dev-only launcher) or any `pages/*.html` file directly from Finder/Explorer, in Chrome or Safari.
+**Entry-flow update:** open `judge-prototype/index.html` for mock Login → capability-based Mode Selector → Admin/Judge home. The old developer launcher has moved to `judge-prototype/dev.html`; direct page previews use its `?preview=1` links. See [`product/prototype-entry-flow.md`](product/prototype-entry-flow.md). This local flow is not production authentication. Older phase notes below retain their historical route names.
+
+**What this is:** a click-through interaction/visual prototype for a tablet-based judge scoring app — **multi-page HTML, double-click portable**. No backend, no build step, no server requirement.
 **What this is not:** the production app. It exists to validate flow, layout, and interaction decisions before the real (likely Flutter) app is built. See `PROTOTYPE-NOTES.md` for the specific gaps that must NOT be carried into production.
 
 ## Opening this prototype
 
-**Just double-click any HTML file.** Every page — `index.html`, `pages/standby.html`, `pages/contestants.html`, `pages/scoring.html`, `pages/review.html`, `pages/submitted.html` — works directly via `file://`, with correct styling, working navigation, and working Preview Mode. No server, no build step, no install.
+**Double-click `judge-prototype/index.html` for the normal flow.** It opens Login, then Mode Selector. Direct Admin/Judge pages now require the local prototype session and selected mode; use `judge-prototype/dev.html` for guarded demo shortcuts or `?preview=1` visual review. All files still use relative `file://` paths; no server, build step, or install is needed.
 
 An earlier version of this prototype briefly required a local server due to a `file://` compatibility issue; that requirement (and the warning banner that came with it) has been removed — see "Direct-file (`file://`) compatibility" below for what changed and how it was verified.
 

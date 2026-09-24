@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Settings — KREEN Judging</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-app" data-admin-page="settings" data-active-nav="settings">
+  <div id="admin-root"></div>
+  <template id="admin-page-template">
+    <div class="admin-settings-page">
+      <header class="admin-page-header">
+        <div>
+          <h1 class="admin-page-title">Settings</h1>
+          <p class="admin-page-description">Event-level defaults and preferences for judging operations.</p>
+        </div>
+      </header>
+      <p class="admin-warning admin-settings-scope"><strong>Event Settings</strong> define global defaults and preferences. <strong>Round Settings</strong> belong to a specific round, such as Preliminary, Top 10, or Final. Contestants, judges, criteria, advancement, and result snapshots remain in their round workspaces.</p>
+      <form id="admin-settings-form" novalidate>
+        <section class="admin-panel admin-settings-panel" aria-labelledby="settings-identity-title">
+          <header><p class="admin-eyebrow">01 / Event</p><h2 id="settings-identity-title">Event Identity</h2><p>Display information for this judging event. Prototype values only.</p></header>
+          <div class="admin-settings-fields">
+            <div><label class="admin-field-label" for="settings-event-name">Event Name</label><input class="admin-field" id="settings-event-name" name="eventName" maxlength="100" required></div>
+            <div><label class="admin-field-label" for="settings-event-year">Event Year</label><input class="admin-field" id="settings-event-year" name="eventYear" inputmode="numeric" maxlength="4" required></div>
+            <div><label class="admin-field-label" for="settings-short-name">Short Name</label><input class="admin-field" id="settings-short-name" name="shortName" maxlength="40" required></div>
+          </div>
+        </section>
+        <section class="admin-panel admin-settings-panel" aria-labelledby="settings-judging-title">
+          <header><p class="admin-eyebrow">02 / Scoring</p><h2 id="settings-judging-title">Judging Defaults</h2><p>Changes apply to new judging configuration only. Existing round criteria and judge assignments are not rewritten.</p></header>
+          <div class="admin-settings-fields">
+            <div><label class="admin-field-label" for="settings-min-score">Min Score</label><input class="admin-field" id="settings-min-score" name="minScore" type="number" step="any" required></div>
+            <div><label class="admin-field-label" for="settings-max-score">Max Score</label><input class="admin-field" id="settings-max-score" name="maxScore" type="number" step="any" required></div>
+            <div><label class="admin-field-label" for="settings-step">Default Step</label><input class="admin-field" id="settings-step" name="step" type="number" step="any" min="0.01" required></div>
+          </div>
+          <div class="admin-settings-toggle-list">
+            <div class="admin-toggle-row"><div><span class="admin-toggle-label" id="criterion-required-label">Default Criterion Required</span><span class="admin-toggle-help" id="criterion-required-help">Preselect Required when adding a criterion to a Draft round.</span></div><div class="admin-settings-toggle-control"><button class="admin-toggle" type="button" role="switch" data-setting-toggle="defaultCriterionRequired" aria-labelledby="criterion-required-label" aria-describedby="criterion-required-help"></button><span class="admin-settings-toggle-value" data-toggle-value="defaultCriterionRequired"></span></div></div>
+            <div class="admin-toggle-row"><div><span class="admin-toggle-label" id="judge-required-label">Default Judge Assignment Required</span><span class="admin-toggle-help" id="judge-required-help">New judge assignments in Draft rounds begin as required.</span></div><div class="admin-settings-toggle-control"><button class="admin-toggle" type="button" role="switch" data-setting-toggle="defaultJudgeAssignmentRequired" aria-labelledby="judge-required-label" aria-describedby="judge-required-help"></button><span class="admin-settings-toggle-value" data-toggle-value="defaultJudgeAssignmentRequired"></span></div></div>
+          </div>
+        </section>
+        <section class="admin-panel admin-settings-panel" aria-labelledby="settings-results-title">
+          <header><p class="admin-eyebrow">03 / Results</p><h2 id="settings-results-title">Result Defaults</h2><p>The default below applies only when a round is newly finalized. Existing per-round visibility remains unchanged.</p></header>
+          <div class="admin-settings-toggle-list"><div class="admin-toggle-row"><div><span class="admin-toggle-label" id="visibility-label">Judge Result Visibility After Finalization</span><span class="admin-toggle-help" id="visibility-help">Initial visibility for newly finalized rounds. Off means an Admin must enable it manually. Judges never see another judge’s scores.</span></div><div class="admin-settings-toggle-control"><button class="admin-toggle" type="button" role="switch" data-setting-toggle="resultVisibilityAfterFinalization" aria-labelledby="visibility-label" aria-describedby="visibility-help"></button><span class="admin-settings-toggle-value" data-toggle-value="resultVisibilityAfterFinalization"></span></div></div></div>
+        </section>
+        <section class="admin-panel admin-settings-panel" aria-labelledby="settings-operations-title">
+          <header><p class="admin-eyebrow">04 / Governance</p><h2 id="settings-operations-title">Operational Preferences</h2><p>These are enforced prototype policies, shown for clarity rather than offered as unsafe switches.</p></header>
+          <div class="admin-settings-policy-list">
+            <div class="admin-settings-policy"><div><strong>Require Reason for Reopen Submission</strong><small>Admin must provide a reason before a submitted score sheet is reopened.</small></div><span class="admin-settings-policy-state">On · Fixed</span></div>
+            <div class="admin-settings-policy"><div><strong>Require Reason for Excuse Judge</strong><small>An excused required judge needs a recorded reason.</small></div><span class="admin-settings-policy-state">On · Fixed</span></div>
+            <div class="admin-settings-policy"><div><strong>Require Tie Acknowledgement Before Finalize</strong><small>Unresolved ties require acknowledgement before results can be finalized.</small></div><span class="admin-settings-policy-state">On · Fixed</span></div>
+          </div>
+        </section>
+        <section class="admin-panel admin-settings-panel" aria-labelledby="settings-judge-title">
+          <header><p class="admin-eyebrow">05 / Judge mode</p><h2 id="settings-judge-title">Judge Experience</h2><p>Current Judge Mode behavior. These controls are read-only in this prototype.</p></header>
+          <div class="admin-settings-policy-list">
+            <div class="admin-settings-policy"><div><strong>Show Save Status</strong><small>Judges can see whether their work has been saved.</small></div><span class="admin-settings-policy-state">On · Fixed</span></div>
+            <div class="admin-settings-policy"><div><strong>Allow Judge Notes</strong><small>Judges may keep notes within their scoring flow.</small></div><span class="admin-settings-policy-state">On · Fixed</span></div>
+            <div class="admin-settings-policy"><div><strong>Show Total Score During Scoring</strong><small>Only the judge’s own score is available while a round is open.</small></div><span class="admin-settings-policy-state">On · Fixed</span></div>
+            <div class="admin-settings-policy"><div><strong>Show Round Results After Admin Enables</strong><small>Results require finalized status and Admin-controlled visibility.</small></div><span class="admin-settings-policy-state">On · Fixed</span></div>
+          </div>
+        </section>
+        <section class="admin-panel admin-settings-panel" aria-labelledby="settings-display-title">
+          <header><p class="admin-eyebrow">06 / Interface</p><h2 id="settings-display-title">Display</h2><p>Theme switching is not part of this prototype.</p></header>
+          <div class="admin-settings-policy"><div><strong>Theme</strong><small>The Admin and Judge prototype use the same dark visual system.</small></div><span class="admin-settings-policy-state">Dark · Fixed</span></div>
+        </section>
+        <p class="admin-field-error" id="settings-error" role="alert" hidden></p>
+        <div class="admin-settings-actions"><span id="settings-save-state" class="admin-settings-save-state" role="status">All changes saved</span><div><button class="admin-btn" id="settings-cancel" type="button" disabled>Cancel Changes</button><button class="admin-btn admin-btn-primary" id="settings-save" type="submit" disabled>Save Settings</button></div></div>
+      </form>
+      <section class="admin-panel admin-settings-panel admin-settings-danger" aria-labelledby="settings-danger-title">
+        <header><p class="admin-eyebrow">Prototype only</p><h2 id="settings-danger-title">Danger Zone</h2><p>Restore event Settings to their defaults. Contestants, scores, rounds, results, and advancement will not be reset.</p></header>
+        <button class="admin-btn admin-btn-danger" id="settings-reset" type="button">Reset Settings</button>
+      </section>
+    </div>
+  </template>
+  <script src="../assets/js/session.js"></script>
+  <script src="admin-navigation.js"></script>
+  <script src="admin-shell.js"></script>
+  <script src="admin-data.js"></script>
+  <script src="admin-domain.js"></script>
+  <script src="admin-settings.js"></script>
+</body>
+</html>

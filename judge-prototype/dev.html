@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KREEN Judging — Developer Launcher</title>
+<link rel="stylesheet" href="assets/css/tokens.css" />
+<link rel="stylesheet" href="assets/css/pages.css" />
+</head>
+<body class="launcher-body">
+
+  <div class="launcher-card">
+    <p class="launcher-eyebrow">Dev / prototype only — not the judge product</p>
+    <h1 class="launcher-title">KREEN Judge Prototype<br /><span class="launcher-subtitle">King &amp; Queen of the Pacific</span></h1>
+
+    <p class="launcher-section-heading">Normal Flow</p>
+    <div class="launcher-primary-actions">
+      <a class="launcher-btn launcher-btn-primary" href="index.html"><span class="launcher-btn-icon" aria-hidden="true">▶</span><span>Open Login</span></a>
+      <button class="launcher-btn launcher-btn-secondary" type="button" data-dev-login="ersa" data-dev-mode="admin"><span class="launcher-btn-icon launcher-btn-icon-secondary" aria-hidden="true">↗</span><span>Demo Admin</span></button>
+      <button class="launcher-btn launcher-btn-secondary" type="button" data-dev-login="amanda" data-dev-mode="judge"><span class="launcher-btn-icon launcher-btn-icon-secondary" aria-hidden="true">↗</span><span>Demo Judge</span></button>
+    </div>
+
+    <p class="launcher-section-heading">Preview Screens</p>
+    <div class="launcher-grid">
+      <a class="launcher-btn launcher-btn-preview" href="pages/my-rounds.html?preview=1">My Rounds</a>
+      <a class="launcher-btn launcher-btn-preview" href="pages/standby.html?round=1&amp;preview=1">Standby</a>
+      <a class="launcher-btn launcher-btn-preview" href="pages/contestants.html?preview=1">Contestants</a>
+      <a class="launcher-btn launcher-btn-preview" href="pages/scoring.html?id=3&amp;preview=1">Scoring</a>
+      <a class="launcher-btn launcher-btn-preview" href="pages/review.html?preview=1">Review</a>
+      <a class="launcher-btn launcher-btn-preview" href="pages/submitted.html?preview=1">Submitted</a>
+    </div>
+
+    <button class="launcher-btn launcher-btn-danger" type="button" id="reset-prototype-btn">Reset Prototype State</button>
+
+    <p class="launcher-note">
+      Developer-only shortcuts. Preview links use <code>preview=1</code> for visual review without a login. Reset clears the Judge score-sheet seed only; it does not log out or erase Admin configuration. Normal entry starts at <code>index.html</code>. Everything remains usable through <code>file://</code> with no server.
+    </p>
+  </div>
+
+  <script src="assets/js/session.js"></script>
+  <script src="assets/js/mock-data.js"></script>
+  <script src="assets/js/state.js"></script>
+  <script>
+    document.querySelectorAll('[data-dev-login]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        if (!window.KreenSession.signIn(button.dataset.devLogin) || !window.KreenSession.selectMode(button.dataset.devMode)) return;
+        window.location.href = button.dataset.devMode === 'admin' ? 'admin/index.html' : 'pages/my-rounds.html';
+      });
+    });
+    document.getElementById('reset-prototype-btn').addEventListener('click', function () {
+      if (window.confirm('Reset prototype data?')) {
+        window.JudgeState.resetState();
+        window.alert('Prototype state reset.');
+      }
+    });
+  </script>
+</body>
+</html>

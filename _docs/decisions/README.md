@@ -15,3 +15,5 @@ Bikin ADR baru kalau mengubah/menambah:
 |---|---|---|
 | [001](adr-001-multipage-localstorage.md) | Multi-page HTML + localStorage (bukan single-page + JS memory) | Accepted |
 | [002](adr-002-file-protocol-compatibility.md) | `file://` compatibility wajib — no ES modules, no fetch, relative paths | Accepted |
+
+Keputusan untuk implementasi produksi yang **belum** disetujui dicatat terpisah di [production-decisions-pending.md](production-decisions-pending.md). ADR prototype di atas tidak berarti arsitektur `localStorage`/`file://` harus dibawa ke Flutter.

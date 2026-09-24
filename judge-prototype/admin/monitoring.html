@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Round Monitoring — KREEN Judging</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-app" data-admin-page="monitoring" data-active-nav="rounds" data-round-tab="monitoring">
+  <div id="admin-root"></div>
+  <template id="admin-page-template">
+    <div id="monitoring-content"></div>
+  </template>
+  <div class="admin-drawer-backdrop" id="admin-drawer" hidden="">
+    <aside class="admin-drawer" role="dialog" aria-modal="true">
+      <header class="admin-drawer-header">
+        <h2 id="admin-drawer-title">Judge details</h2><button class="admin-icon-btn" type="button" data-close-drawer="" aria-label="Close drawer">×</button>
+      </header>
+      <div class="admin-drawer-body" id="admin-drawer-body"></div>
+      <footer class="admin-drawer-footer" id="admin-drawer-footer"></footer>
+    </aside>
+  </div>
+  <script src="../assets/js/session.js"></script>
+  <script src="admin-navigation.js"></script>
+  <script src="admin-shell.js"></script>
+  <script src="admin-round-workspace.js"></script>
+  <script src="admin-data.js"></script>
+  <script src="admin-domain.js"></script>
+  <script src="admin-governance.js"></script>
+</body>
+</html>

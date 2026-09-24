@@ -10,9 +10,12 @@
   const Nav = window.JudgeNav;
 
   window.JudgeChrome.init();
+  const round = Nav.guardAssignedRound();
+  if (!round) return;
+  const contestants = DATA.getRoundContestants(round.id);
 
   document.getElementById('gallery-event-name').textContent = DATA.event.name;
-  document.getElementById('gallery-round').textContent = DATA.round.name;
+  document.getElementById('gallery-round').textContent = round.name;
   document.getElementById('gallery-judge-identity').textContent =
     'Judge ' + String(DATA.judge.number).padStart(2, '0') + ' · ' + DATA.judge.name;
 
@@ -93,7 +96,7 @@
 
   function renderGrid() {
     grid.innerHTML = '';
-    const visible = DATA.contestants.filter(function (c) { return matchesFilter(c, currentFilter); });
+    const visible = contestants.filter(function (c) { return matchesFilter(c, currentFilter); });
 
     if (visible.length === 0) {
       const empty = document.createElement('p');
@@ -137,8 +140,8 @@
     });
   });
 
-  reviewCtaBtn.addEventListener('click', Nav.goToReview);
-  standbyActionBtn.addEventListener('click', Nav.goToStandby);
+  reviewCtaBtn.addEventListener('click', function () { Nav.goToReview(round.id); });
+  standbyActionBtn.addEventListener('click', function () { Nav.goToStandby(round.id); });
 
   updateHeader();
   renderGrid();

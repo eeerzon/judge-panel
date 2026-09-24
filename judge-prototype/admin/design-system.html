@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin Design System — KREEN Judging</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-app" data-admin-page="design-system" data-active-nav="rounds">
+  <div id="admin-root"></div>
+  <template id="admin-page-template">
+    <header class="admin-page-header">
+      <div>
+        <p class="admin-eyebrow">Phase 1 reference</p>
+        <h1 class="admin-page-title">Admin Design System</h1>
+        <p class="admin-page-description">Shared foundations for the Admin operational workspace.</p>
+      </div><a class="admin-btn" href="index.html">View Shell</a>
+    </header>
+    <section class="admin-panel admin-ds-section">
+      <h2>Shared shell contract</h2>
+      <p>All Admin pages use the same sidebar, event context, spacing, typography, and responsive behavior.</p>
+      <div class="admin-token-grid">
+        <div class="admin-token">
+          <div class="admin-token-swatch" style="background:#12090A"></div><span class="admin-token-name">Background</span><span class="admin-token-value">#12090A</span>
+        </div>
+        <div class="admin-token">
+          <div class="admin-token-swatch" style="background:#C89B4B"></div><span class="admin-token-name">Gold accent</span><span class="admin-token-value">#C89B4B</span>
+        </div>
+        <div class="admin-token">
+          <div class="admin-token-swatch" style="background:#1E9E5C"></div><span class="admin-token-name">Completed</span><span class="admin-token-value">#1E9E5C</span>
+        </div>
+      </div>
+    </section>
+    <section class="admin-panel admin-ds-section">
+      <h2>Round workspace</h2>
+      <p>Round pages keep a stable context header and one horizontal tab order: Overview, Monitoring, Contestants, Judges, Criteria, Results, Settings.</p>
+      <div class="admin-round-context admin-panel">
+        <div class="admin-round-context-top">
+          <div class="admin-round-heading">
+            <a class="admin-round-back" href="rounds.html">← Rounds</a>
+            <p class="admin-eyebrow">Round workspace</p>
+            <div class="admin-round-title-row"><h3 class="admin-round-name">Preliminary</h3><span class="admin-status admin-status-open">Open</span></div>
+          </div>
+          <div class="admin-round-facts">
+            <span><strong>15</strong> contestants</span><span class="admin-round-fact-separator" aria-hidden="true">·</span><span><strong>7</strong> judges</span>
+          </div>
+        </div>
+        <div class="admin-tab-wrap can-scroll-right"><div class="admin-tab-scroll">
+          <nav class="admin-tabs">
+            <button class="admin-tab is-active">Overview</button><button class="admin-tab">Monitoring</button><button class="admin-tab">Contestants</button><button class="admin-tab">Judges</button><button class="admin-tab">Criteria</button><button class="admin-tab" disabled>Results</button><button class="admin-tab" disabled>Settings</button>
+          </nav>
+        </div></div>
+      </div>
+    </section>
+    <section class="admin-panel admin-ds-section">
+      <h2>Status and controls</h2>
+      <p>Status uses text plus a dot; controls remain touch-friendly and restrained.</p>
+      <div style="display:flex;gap:9px;flex-wrap:wrap">
+        <span class="admin-status admin-status-draft">Draft</span><span class="admin-status admin-status-open">Open</span><span class="admin-status admin-status-submitted">Submitted</span><span class="admin-status admin-status-in-progress">In Progress</span>
+      </div>
+      <div class="admin-page-actions" style="margin-top:20px">
+        <button class="admin-btn" data-open-modal="">Open confirmation modal</button><button class="admin-btn admin-btn-primary" data-open-drawer="">Open drawer</button>
+      </div>
+    </section>
+  </template>
+  <div class="admin-modal-backdrop" id="admin-modal" hidden="">
+    <section class="admin-modal" role="dialog" aria-modal="true">
+      <h2 id="admin-modal-title">Open Preliminary?</h2>
+      <p>Once opened, assigned judges can begin scoring.</p>
+      <div class="admin-modal-actions">
+        <button class="admin-btn" data-close-modal="">Cancel</button><button class="admin-btn admin-btn-success" data-close-modal="">Open Round</button>
+      </div>
+    </section>
+  </div>
+  <div class="admin-drawer-backdrop" id="admin-drawer" hidden="">
+    <aside class="admin-drawer" role="dialog" aria-modal="true">
+      <header class="admin-drawer-header">
+        <h2>Create Round</h2><button class="admin-icon-btn" data-close-drawer="">×</button>
+      </header>
+      <div class="admin-drawer-body">
+        <p class="admin-page-description">Creation is a visual prototype only.</p>
+      </div>
+      <footer class="admin-drawer-footer">
+        <button class="admin-btn" data-close-drawer="">Cancel</button>
+      </footer>
+    </aside>
+  </div>
+  <script src="../assets/js/session.js"></script>
+  <script src="admin-navigation.js"></script>
+  <script src="admin-shell.js"></script>
+  <script src="admin-round-workspace.js"></script>
+  <script src="admin-data.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

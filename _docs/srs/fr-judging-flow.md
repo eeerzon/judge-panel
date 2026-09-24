@@ -1,5 +1,14 @@
 # FR — Judging Flow
 
+## FR-Admin-4B — Round Configuration
+
+- Admin memilih contestant event-level untuk sebuah round melalui `RoundContestant`; nomor dan identity tetap berasal dari master.
+- Admin menugaskan judge event-level melalui `RoundJudgeAssignment`; setiap assignment memiliki `judgeId`, `roundId`, `required`, dan `assignmentStatus`.
+- Assignment contestant/judge dan required toggle hanya editable pada Round `Draft`. Round `Open`, `Closed`, atau `Finalized` harus menampilkan pesan `Round configuration is locked while judging is open.` dan kontrol read-only.
+- Criteria mendukung parent/group satu level, criterion scored atau non-scored, bobot, rentang nilai, step, required, dan sequence.
+- Effective scored weight hanya menjumlahkan criterion `isScored`; parent non-scored tidak double-count. Validasi menampilkan `100% ✓`, sisa bobot, atau kondisi melebihi 100%.
+- Round readiness menampilkan jumlah contestant/judge assigned, required judges, required submission progress, dan validitas effective weight.
+
 Functional requirements untuk alur utama prototype. Semua rule di sini **sudah terimplementasi** dan diverifikasi lewat testing manual di browser (lihat `HANDOFF.md` bagian "Test results"). Dokumen ini adalah *deskripsi* dari behavior yang sudah ada, bukan spec untuk dibangun — kalau Codex mengubah behavior, dokumen ini yang harus diupdate mengikuti, bukan sebaliknya.
 
 ## Alur Normal
@@ -79,7 +88,7 @@ Begitu `isSubmitted === true`:
 - **Contestant Gallery**: banner "Judging Submitted" tampil, semua kartu status Scored, tombol header CTA berubah jadi "View Submission".
 - **Review**: catatan "Judging submitted. These scores are locked..." tampil, tidak ada tombol "Continue"/"Score"/"Submit Judging" di manapun.
 
-Tidak ada mekanisme un-submit dari UI — hanya reset localStorage (`Reset Prototype State` di launcher, atau manual clear) yang mengembalikan ke draft.
+Judge tidak dapat melakukan un-submit sendiri. Pada Phase 4C, Admin dapat melakukan Reopen Submission dengan reason; saat itu skor tersimpan kembali editable selama Round Open, lalu Judge dapat Resubmit.
 
 ## FR-7 — Privasi/Fairness Data
 
@@ -94,3 +103,14 @@ Yang boleh ditampilkan hanya: foto, nomor, nama, negara kontestan, dan progress/
 ## FR-8 — Preview Mode (khusus dev, bukan flow judge)
 
 `?preview=1` di URL manapun: render tanpa guard state, **tidak pernah** menulis ke localStorage, **tidak pernah** mengubah `isSubmitted`. Dipakai murni untuk review visual satu halaman tanpa harus jalani flow lengkap dari awal. Lihat `architecture/system-overview.md` §Preview Mode untuk detail teknis.
+
+## Phase 3 — Multi-round Judge Context
+
+Flow normal dimulai dari `my-rounds.html`, lalu memilih round dan membawa konteks eksplisit melalui `?round=N` ke Standby, Contestants, Scoring, Review, dan Submitted. State skor dan submission terisolasi per round; state lama dimigrasikan ke Preliminary. Mock assignment hanya memberi akses scoring ke Preliminary yang open. Round Draft/Closed/invalid menampilkan state aman dan tidak mengizinkan editing. Judge Mode tidak menampilkan admin monitoring, skor juri lain, ranking, atau hasil gabungan.
+
+## Phase 4C — Reopened, Resubmitted, Closed
+
+- Admin Reopen mengubah Judge My Rounds menjadi `Submission Reopened`, menampilkan alasan, dan memberi aksi `Continue Judging`. Skor lama tidak dihapus; Review/Scoring kembali dapat diedit selama Round Open dan assignment aktif.
+- Submit setelah Reopen menghasilkan status internal `Resubmitted` serta timestamp pada reopen history. Judge Mode boleh menampilkan konfirmasi sederhana `Submitted`.
+- Assignment Excused/Removed tidak memberi akses judging. Closed membuat scoring dan submit tidak tersedia; submission yang sudah ada tetap dapat dibaca.
+- Bridge prototype memakai `kreenAdminConfiguration` dan `kreenJudgePrototype` di localStorage. Refresh normal setelah berpindah mode cukup; ini bukan mekanisme sinkronisasi produksi.

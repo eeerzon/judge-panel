@@ -9,8 +9,11 @@
   const Nav = window.JudgeNav;
 
   window.JudgeChrome.init();
+  const round = Nav.guardAssignedRound();
+  if (!round) return;
+  const contestants = DATA.getRoundContestants(round.id);
 
-  document.getElementById('review-round').textContent = DATA.round.name;
+  document.getElementById('review-round').textContent = round.name;
 
   const backBtn = document.getElementById('review-back');
   const summaryPanel = document.getElementById('review-summary-panel');
@@ -29,7 +32,7 @@
   const modalConfirmBtn = document.getElementById('modal-confirm');
   const modalFailedRetryBtn = document.getElementById('modal-failed-retry');
 
-  backBtn.addEventListener('click', Nav.goToContestants);
+  backBtn.addEventListener('click', function () { Nav.goToContestants(round.id); });
 
   let reviewFilter = 'all';
 
@@ -155,7 +158,7 @@
 
   function renderList() {
     listEl.innerHTML = '';
-    const visible = DATA.contestants.filter(function (c) { return matchesFilter(c, reviewFilter); });
+    const visible = contestants.filter(function (c) { return matchesFilter(c, reviewFilter); });
     if (visible.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'review-empty-state';
@@ -179,7 +182,7 @@
   });
 
   function goToFirstIncomplete() {
-    const target = DATA.contestants.find(function (c) { return S.getContestantStatus(c.id).status !== 'scored'; });
+    const target = contestants.find(function (c) { return S.getContestantStatus(c.id).status !== 'scored'; });
     if (target) Nav.goToScoring(target.id, 'review');
   }
 

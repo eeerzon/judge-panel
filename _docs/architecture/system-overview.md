@@ -4,12 +4,15 @@
 
 ```
 judge-prototype/
-  index.html               launcher dev-only (BUKAN entry point judge) — buka pages/standby.html untuk mulai flow nyata
+  index.html               Login prototype (normal product entry)
+  mode.html                selector Admin/Judge berdasar capabilities lokal
+  dev.html                 launcher, preview, dan reset khusus developer
   start-server.command     OPSIONAL — serve via http://localhost:8934, tidak wajib (semua file:// compatible)
   _legacy-single-page/     backup arsip prototype versi single-page sebelum Phase 6 (jangan edit, referensi historis saja)
 
   pages/
-    standby.html           idle/lock screen
+    my-rounds.html         judge round selection entry point
+    standby.html           idle/lock screen (`?round=N`)
     contestants.html        grid 15 kontestan
     scoring.html             ?id=N wajib — satu kontestan per waktu
     review.html               list + summary + modal submit
@@ -20,9 +23,11 @@ judge-prototype/
       tokens.css            :root variables saja
       components.css         semua styling komponen + shell layout (2200+ baris, sengaja tidak dipecah lagi — lihat komentar di file itu)
       pages.css               tambahan khusus launcher/dev (preview banner, launcher card)
+      entry.css               Login dan Mode Selector
     js/
-      mock-data.js            window.JudgePrototypeData — data statis (event/judge/round/15 kontestan/rubrik skor), TIDAK PERNAH dimutasi
-      state.js                window.JudgeState — SATU-SATUNYA modul yang baca/tulis localStorage, semua business logic
+      mock-data.js            window.JudgePrototypeData — event/judge/round-specific contestants and criteria, TIDAK PERNAH dimutasi
+      session.js              fixture user/capability/mode; guard UX (bukan auth produksi)
+      state.js                window.JudgeState — SATU-SATUNYA modul localStorage; schema v2 scopes scores/submission per round
       navigation.js           window.JudgeNav — semua fungsi pindah halaman + guard
       chrome.js               window.JudgeChrome — dev panel/offline banner/preview banner/connection status/standby timeout (dipakai semua halaman)
       standby.js, contestants.js, scoring.js, review.js, submitted.js
@@ -33,6 +38,7 @@ judge-prototype/
 ## Urutan Load Script (wajib, di semua halaman `pages/*.html`)
 
 ```html
+<script src="../assets/js/session.js"></script>
 <script src="../assets/js/mock-data.js"></script>
 <script src="../assets/js/state.js"></script>
 <script src="../assets/js/navigation.js"></script>
@@ -40,7 +46,7 @@ judge-prototype/
 <script src="../assets/js/{nama-halaman}.js"></script>
 ```
 
-Semua classic script (bukan `type="module"`) — urutan ini penting karena tiap file mengasumsikan global sebelumnya sudah ada (`window.JudgePrototypeData` → `window.JudgeState` → `window.JudgeNav` → `window.JudgeChrome` → logic halaman).
+Semua classic script (bukan `type="module"`) — `session.js` lebih dulu untuk guard UX dan konteks user. Sisanya berurutan (`window.JudgePrototypeData` → `window.JudgeState` → `window.JudgeNav` → `window.JudgeChrome` → logic halaman). Login/Mode Selector memakai `session.js` + `entry.js`. Admin memakai `session.js` sebelum shared Admin shell. Lihat [`../product/prototype-entry-flow.md`](../product/prototype-entry-flow.md).
 
 ## State Model
 
@@ -134,3 +140,7 @@ Lihat `decisions/adr-002-file-protocol-compatibility.md` untuk audit lengkap. Ri
 - **Dev panel** (`chrome.js` + markup di tiap halaman): simulasi connection state, save/submit failure, force-standby, reset. Sengaja bergaya "debug tool" (monospace, dashed border) supaya tidak tertukar dengan UI produk.
 - **Launcher** (`index.html` root): navigasi cepat untuk review — Normal Flow, Preview Screens (semua 5 halaman + `?preview=1`), Reset Prototype State.
 - **`start-server.command`**: opsional, untuk test flow HTTP penuh — tidak diperlukan untuk review visual biasa.
+
+## Phase 3 — Multi-round Judge Context
+
+Semua Judge page menerima `?round=N` dan memanggil `JudgeNav.resolveRound()` sebelum merender. `JudgeState` menggunakan schema v2: `scoresByRound[roundId][contestantId][criterionId]`, `notesByRound`, dan `submissionByRound`. Data round-specific berasal dari `JudgePrototypeData.rounds`, dengan helper `getRound`, `getRoundContestants`, dan `getRoundCriteria`. State schema lama dimigrasikan ke Preliminary (`round=1`); state invalid tidak boleh membuat page crash. Mock assignment saat ini hanya Preliminary, sedangkan Top 10/Final dipakai untuk preview/state isolation.

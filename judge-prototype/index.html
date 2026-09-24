@@ -1,46 +1,38 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KREEN Judge Prototype — Launcher</title>
-<link rel="stylesheet" href="assets/css/tokens.css" />
-<link rel="stylesheet" href="assets/css/pages.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign In — KREEN Judging</title>
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/entry.css">
 </head>
-<body class="launcher-body">
-
-  <div class="launcher-card">
-    <p class="launcher-eyebrow">Dev / prototype only — not the judge product</p>
-    <h1 class="launcher-title">KREEN Judge Prototype<br /><span class="launcher-subtitle">King &amp; Queen of the Pacific</span></h1>
-
-    <p class="launcher-section-heading">Normal Flow</p>
-    <a class="launcher-btn launcher-btn-primary" href="pages/standby.html">▶ Start Prototype</a>
-
-    <p class="launcher-section-heading">Preview Screens</p>
-    <div class="launcher-grid">
-      <a class="launcher-btn" href="pages/standby.html?preview=1">Standby</a>
-      <a class="launcher-btn" href="pages/contestants.html?preview=1">Contestants</a>
-      <a class="launcher-btn" href="pages/scoring.html?id=3&preview=1">Scoring</a>
-      <a class="launcher-btn" href="pages/review.html?preview=1">Review</a>
-      <a class="launcher-btn" href="pages/submitted.html?preview=1">Submitted</a>
-    </div>
-
-    <button class="launcher-btn launcher-btn-danger" type="button" id="reset-prototype-btn">Reset Prototype State</button>
-
-    <p class="launcher-note">
-      Every file here (this launcher and every page under <code>pages/</code>) opens directly by double-click — no server required. "Start Prototype" follows the real judge flow with normal guards (Submitted only reachable after a real submit, Scoring locked read-only after submission). Preview links open a page directly for visual review — they never guard on state and never write to it. Reset clears the saved data (localStorage namespace <code>kreenJudgePrototype</code>) and restores the seed. <code>start-server.command</code> is available in this same folder as an optional convenience if you want to test the full persistent flow over <code>http://localhost</code> — it is not required for anything above.
-    </p>
-  </div>
-
-  <script src="assets/js/mock-data.js"></script>
-  <script src="assets/js/state.js"></script>
-  <script>
-    document.getElementById('reset-prototype-btn').addEventListener('click', function () {
-      if (window.confirm('Reset prototype data?')) {
-        window.JudgeState.resetState();
-        window.alert('Prototype state reset.');
-      }
-    });
-  </script>
+<body class="entry-body">
+  <main class="entry-layout">
+    <section class="entry-intro" aria-label="KREEN Judging">
+      <span class="entry-mark">K</span>
+      <p class="entry-kicker">KREEN JUDGING</p>
+      <h1>Every score starts with clarity.</h1>
+      <p>One place to manage the event and give every contestant a thoughtful, fair evaluation.</p>
+      <span class="entry-event">King &amp; Queen of the Pacific · 2026</span>
+    </section>
+    <section class="entry-panel" aria-labelledby="login-title">
+      <p class="entry-eyebrow">Welcome back</p>
+      <h2 id="login-title">Sign in</h2>
+      <p class="entry-help">Continue to your judging workspace.</p>
+      <form id="entry-login-form">
+        <label for="entry-identity">Email or username</label>
+        <input id="entry-identity" name="identity" autocomplete="username" required placeholder="Your email or username">
+        <label for="entry-password">Password</label>
+        <input id="entry-password" name="password" type="password" autocomplete="current-password" required placeholder="Enter password">
+        <p class="entry-note">Demo access accepts any password.</p>
+        <p class="entry-error" id="entry-error" role="alert" hidden></p>
+        <button class="entry-btn entry-btn-primary" type="submit">Sign In <span aria-hidden="true">→</span></button>
+      </form>
+      <div class="entry-demo"><p>DEMO ACCESS</p><button type="button" data-demo-user="ersa">Continue as Ersa</button><button type="button" data-demo-user="amanda">Continue as Amanda Wijaya</button><button type="button" data-demo-user="event-admin">Continue as Event Admin</button></div>
+    </section>
+  </main>
+  <script src="assets/js/session.js"></script>
+  <script src="assets/js/entry.js"></script>
 </body>
 </html>

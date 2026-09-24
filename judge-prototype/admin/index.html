@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin Overview — KREEN Judging</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-app" data-admin-page="overview" data-active-nav="overview">
+  <div id="admin-root"></div>
+  <template id="admin-page-template">
+    <header class="admin-page-header">
+      <div>
+        <p class="admin-eyebrow">Event overview</p>
+        <h1 class="admin-page-title">Judging Overview</h1>
+        <p class="admin-page-description">A calm operational view of your rounds, assignments, and judging progress.</p>
+      </div>
+      <div class="admin-page-actions">
+        <a class="admin-btn" href="design-system.html">Design reference</a><button class="admin-btn admin-btn-primary" type="button" data-open-drawer="">+ Create Round</button>
+      </div>
+    </header>
+    <section class="admin-stat-grid" id="overview-stats"></section>
+    <div class="admin-section-heading">
+      <div>
+        <h2>Rounds</h2>
+        <p>Current judging configuration and progress.</p>
+      </div><a class="admin-btn admin-btn-small" href="rounds.html">View All Rounds</a>
+    </div>
+    <section class="admin-round-grid" id="overview-rounds"></section>
+    <div class="admin-section-heading">
+      <div>
+        <h2>Live judging</h2>
+        <p>Status-only operational monitoring. Scores stay private.</p>
+      </div><a class="admin-btn admin-btn-small" href="live.html">Open Live</a>
+    </div>
+    <section class="admin-panel admin-data-list" id="overview-monitoring"></section>
+  </template>
+  <div class="admin-drawer-backdrop" id="admin-drawer" hidden="">
+    <aside class="admin-drawer" role="dialog" aria-modal="true">
+      <header class="admin-drawer-header">
+        <h2 id="admin-drawer-title">Create Round</h2><button class="admin-icon-btn" data-close-drawer="">×</button>
+      </header>
+      <div class="admin-drawer-body">
+        <p class="admin-page-description">Creation is a visual prototype only; it does not change the local mock data.</p>
+      </div>
+      <footer class="admin-drawer-footer">
+        <button class="admin-btn" data-close-drawer="">Cancel</button><button class="admin-btn admin-btn-primary" data-close-drawer="">Create Draft</button>
+      </footer>
+    </aside>
+  </div>
+  <script src="../assets/js/session.js"></script>
+  <script src="admin-navigation.js"></script>
+  <script src="admin-shell.js"></script>
+  <script src="admin-round-workspace.js"></script>
+  <script src="admin-data.js"></script>
+  <script src="admin-domain.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

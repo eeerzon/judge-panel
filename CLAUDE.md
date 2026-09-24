@@ -30,14 +30,21 @@ Referensi: https://github.com/multica-ai/andrej-karpathy-skills
 | File | Isi |
 |---|---|
 | `_docs/README.md` | Index dokumentasi + penjelasan kenapa docs tier ini dipakai |
-| `_docs/design/design-system.md` | **Paling penting** — token warna, tipografi, spacing, semua komponen UI, state, breakpoint. Sumber kebenaran visual untuk Codex. |
+| `_docs/design/design-system.md` | **Paling penting** — token warna, tipografi, spacing, semua komponen UI, state, breakpoint untuk 5 layar Judge. Sumber kebenaran visual. |
+| `_docs/design/admin-design-system.md` | Token/komponen visual khusus Admin workspace (prototype-only). |
 | `_docs/brd/brd-core.md` | Tujuan, scope, out-of-scope, target user |
-| `_docs/srs/fr-judging-flow.md` | Alur fungsional per layar + business rules (formula skor, guard, validasi) |
+| `_docs/srs/fr-judging-flow.md` | Alur fungsional per layar Judge + business rules (formula skor, guard, validasi) |
+| `_docs/srs/fr-admin-configuration.md` | Alur fungsional Admin (rounds, judges, rubric, monitoring, governance) |
 | `_docs/srs/nfr.md` | Non-functional requirements: touch target, kontras, responsive, browser support |
 | `_docs/architecture/system-overview.md` | Struktur file, state model, localStorage schema, page guards |
-| `_docs/decisions/` | ADR — kenapa multi-page+localStorage, kenapa harus `file://`-compatible |
+| `_docs/architecture/state-ownership.md` | Siapa (Judge/Admin/localStorage key) yang memiliki bagian state mana |
+| `_docs/architecture/target-system-map.md` | Peta target arsitektur produksi (Flutter+backend), bukan implementasi |
+| `_docs/architecture/api-boundary.md`, `_docs/api/api-boundary.md` | Dua dokumen boundary API pelengkap — enforcement principle vs. candidate resource/route; keduanya kontrak kandidat, bukan implementasi |
+| `_docs/product/` | `mvp-scope.md`, `lifecycle.md`, `domain-model.md`, `permission-matrix.md`, `prototype-entry-flow.md` — model domain/lifecycle/permission yang jadi dasar Admin+multi-round |
+| `_docs/decisions/` | ADR — kenapa multi-page+localStorage, kenapa harus `file://`-compatible, plus `production-decisions-pending.md` (keputusan bisnis yang belum disetujui) |
+| `_docs/flutter/` | **Handoff Flutter** — `FLUTTER-IMPLEMENTATION-HANDOFF.md` (baca duluan), `screen-inventory.md`, `widget-map.md`, `local-storage.md`, `sync-strategy.md`, `prototype-mapping.md` |
 | `_docs/referensi/coding-standards.md` | Aturan kode wajib (project rules) — paling sering dilanggar kalau tidak dibaca |
 | `_docs/quality/definition-of-done.md` | Kriteria "selesai" untuk perubahan di prototype ini |
-| `_docs/tasks/tasks.md` | Log fase kerja yang sudah selesai (Phase 1–6) |
+| `_docs/tasks/tasks.md` | Log fase kerja yang sudah selesai (Phase 1–7+) |
 | `_docs/HANDOFF.md` | Handoff teknis detail (existing, jangan dihapus) |
-| `_docs/PROTOTYPE-NOTES.md` | Batasan/simulasi yang tidak boleh dibawa ke produksi (existing, jangan dihapus) |
+| `_docs/PROTOTYPE-NOTES.md` | Batasan/simulasi yang tidak boleh dibawa ke produksi, termasuk catatan supersede untuk Admin/multi-round/Results (existing, jangan dihapus) |

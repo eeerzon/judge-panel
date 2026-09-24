@@ -10,6 +10,8 @@
   const Nav = window.JudgeNav;
 
   window.JudgeChrome.init();
+  const round = Nav.guardAssignedRound();
+  if (!round) return;
 
   const screen = document.getElementById('standby-screen');
   const logoImg = document.getElementById('standby-logo');
@@ -18,12 +20,14 @@
   const judgeEl = document.getElementById('standby-judge-identity');
   const submittedNote = document.getElementById('standby-submitted-note');
   const clockEl = document.getElementById('clock');
+  const roundsLink = document.getElementById('standby-my-rounds');
 
   logoImg.src = DATA.event.logo;
   yearEl.textContent = String(DATA.event.year);
-  roundEl.textContent = DATA.round.name;
+  roundEl.textContent = round.name;
   judgeEl.textContent = 'Judge ' + String(DATA.judge.number).padStart(2, '0') + ' · ' + DATA.judge.name;
   submittedNote.hidden = !S.isSubmitted();
+  if (roundsLink) roundsLink.addEventListener('click', function (event) { event.stopPropagation(); });
 
   function updateClock() {
     const now = new Date();
@@ -33,7 +37,7 @@
   setInterval(updateClock, 15000);
 
   function wake() {
-    Nav.goToContestants();
+    Nav.goToContestants(round.id);
   }
 
   screen.addEventListener('click', wake);

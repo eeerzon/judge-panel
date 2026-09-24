@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Contestants — KREEN Judging</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-app" data-config-page="contestants" data-master-page="contestants" data-active-nav="contestants">
+  <div id="admin-root"></div>
+  <template id="admin-page-template">
+    <header class="admin-page-header">
+      <div>
+        <h1 class="admin-page-title">Contestants</h1>
+        <p class="admin-page-description">Manage contestant identity, status, and round participation.</p>
+      </div><button class="admin-btn admin-btn-primary" data-master-open="" type="button">+ Add Contestant</button>
+    </header>
+    <div class="admin-filter-bar">
+      <div class="admin-search-wrap">
+        <span class="admin-search-icon" aria-hidden="true">⌕</span><label class="sr-only" for="config-search">Search contestants</label><input class="admin-field" id="config-search" type="search" placeholder="Search name, number, or country">
+      </div><label class="sr-only" for="config-status-filter">Filter contestant status</label><select class="admin-field" id="config-status-filter">
+        <option value="all">
+          Status: All
+        </option>
+        <option value="active">
+          Active
+        </option>
+        <option value="inactive">
+          Inactive
+        </option>
+      </select>
+    </div>
+    <div id="config-content"></div>
+  </template>
+  <div class="admin-drawer-backdrop" id="admin-drawer" hidden="">
+    <aside class="admin-drawer" role="dialog" aria-modal="true">
+      <header class="admin-drawer-header">
+        <h2 id="admin-drawer-title">Manage Contestant</h2><button class="admin-icon-btn" data-close-drawer="" aria-label="Close drawer">×</button>
+      </header>
+      <div class="admin-drawer-body" id="admin-drawer-body"></div>
+      <footer class="admin-drawer-footer" id="admin-drawer-footer"></footer>
+    </aside>
+  </div>
+  <script src="../assets/js/session.js"></script>
+  <script src="admin-navigation.js"></script>
+  <script src="admin-shell.js"></script>
+  <script src="admin-round-workspace.js"></script>
+  <script src="admin-data.js"></script>
+  <script src="admin-domain.js"></script>
+  <script src="admin-master.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

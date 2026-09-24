@@ -195,3 +195,44 @@ No Result/Ranking engine, no Head Judge UI, no other-judges' scores, no
 admin dashboard, no real backend/API/auth, and no Flutter code was written
 in this phase — see the Phase 5 handoff report for the full audit findings,
 score-entry recommendation, and remaining production risk list.
+
+## ⚠️ Superseded by Phase 0–7 (Admin, multi-round, Results/Advancement, Flutter handoff)
+
+Everything above describes the prototype as it stood after Phase 5/6 —
+**5 Judge screens only, single round, no admin, no results.** That scope
+has since been deliberately extended (not by accident) under a separate,
+explicitly-governed roadmap:
+
+- **Admin Mode** (`judge-prototype/admin/`) — rounds, contestants, judges,
+  criteria, monitoring, results, advancement, audit, settings.
+- **Multi-round Judge** (`pages/my-rounds.html`, `?round=N` on every Judge
+  page) — the 5 frozen Judge screens themselves were **not** redesigned;
+  they now just receive a round context instead of operating on a single
+  hardcoded round.
+- **A mock Login → capability-based Mode Selector** (`index.html` →
+  `mode.html`) is now the normal entry point. The old direct-launcher
+  behavior moved to `dev.html`.
+- **localStorage schema is now v2**, round-scoped: `scoresByRound`,
+  `notesByRound`, `submissionByRound` (was flat `scores`/`notes` keyed
+  only by contestant id — see `architecture/system-overview.md` §Phase 3).
+  A second key, `kreenAdminConfiguration`, holds the Admin-side mock data
+  bridge (rounds/assignments/results) — **still just localStorage, still
+  just a prototype convenience**, same caveats as before apply to both keys.
+- **Results/Advancement UI exists** (Phase 5–6 in `tasks/tasks.md`), but
+  only after an explicit "Rule V1" was written down and reviewed — see
+  `product/mvp-scope.md` and `product/lifecycle.md` §Result Lifecycle.
+  This is still a **prototype policy baseline, not approved production
+  policy** — every number/rule there is a reviewable candidate.
+- **A full Flutter implementation handoff now exists**:
+  [`flutter/FLUTTER-IMPLEMENTATION-HANDOFF.md`](flutter/FLUTTER-IMPLEMENTATION-HANDOFF.md)
+  is the document to read before writing any Flutter/backend code — it
+  explicitly lists what **not** to port from this HTML prototype (§10:
+  don't port `localStorage`, `file://` compatibility, classic-script
+  init, URL query hacks, mocked authorization/audit, or CSS breakpoint
+  pixel values as Flutter constants).
+
+None of this makes the original Phase 1–6 caveats above wrong — they're
+still accurate for the 5 Judge screens specifically. It means **this file
+is no longer the full picture** for the project as a whole. Read
+`_docs/README.md` → "Status handoff saat ini" and `tasks/tasks.md` for the
+current phase index before assuming anything here is the latest state.

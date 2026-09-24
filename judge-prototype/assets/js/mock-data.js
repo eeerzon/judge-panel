@@ -62,6 +62,17 @@
     { id: 14, number: 14, name: 'Mrs Edelisa', country: 'Portugal', photo: '../assets/images/Mister 4.jpg' },
     { id: 15, number: 15, name: 'Mister Jerome', country: 'Philippines', photo: '../assets/images/Mister 5.jpg' },
   ];
+  const seedPhotos = contestants.map(function (person) { return person.photo; });
+  function judgePhotoPath(photo, contestantId) {
+    const source = String(photo || '').trim();
+    if (!source) return '';
+    // Admin master paths are relative to admin/*.html; Judge pages live in pages/.
+    const seedMatch = /^photos\/contestant-(\d{2})\.jpg$/i.exec(source);
+    if (seedMatch && Number(seedMatch[1]) === Number(contestantId) && seedPhotos[contestantId - 1]) return seedPhotos[contestantId - 1];
+    if (/^photos\//i.test(source)) return '../admin/' + source;
+    if (/^assets\//i.test(source)) return '../' + source;
+    return source; // Existing ../assets/, data:, blob:, and absolute URLs already resolve.
+  }
 
   // A few pre-filled demo scores so Gallery/Review filters have something to
   // show on first load (seeded into state.js on first run only). Everything
@@ -82,10 +93,56 @@
   // computing initials so the photo-fallback monogram reads naturally (e.g. "Shaida" -> "S").
   const nameTitles = ['mrs', 'miss', 'mister'];
 
+  const roundCriteria = {
+    1: scoringSections,
+    2: [
+      { heading: 'Performance', weight: 60, criteria: [{ key: 'interview', label: 'Interview', weight: 30 }, { key: 'stagePresence', label: 'Stage Presence', weight: 30 }] },
+      { heading: 'Presentation', weight: 40, criteria: [{ key: 'eveningGown', label: 'Evening Gown', weight: 40, standalone: true }] },
+    ],
+    3: [
+      { heading: 'Final Assessment', weight: 100, criteria: [{ key: 'finalQuestion', label: 'Final Question', weight: 40 }, { key: 'overallImpression', label: 'Overall Impression', weight: 60, standalone: true }] },
+    ],
+  };
+  const roundContestantIds = {
+    1: contestants.map(function (c) { return c.id; }),
+    2: contestants.slice(0, 10).map(function (c) { return c.id; }),
+    3: contestants.slice(0, 5).map(function (c) { return c.id; }),
+  };
+  const rounds = [
+    { id: 1, name: 'Preliminary', status: 'open', contestantIds: roundContestantIds[1], criteriaSections: roundCriteria[1], resultsVisibleToJudges: false },
+    { id: 2, name: 'Top 10', status: 'draft', contestantIds: roundContestantIds[2], criteriaSections: roundCriteria[2], resultsVisibleToJudges: false },
+    { id: 3, name: 'Final', status: 'draft', contestantIds: roundContestantIds[3], criteriaSections: roundCriteria[3], resultsVisibleToJudges: false },
+  ];
+  // The Admin prototype owns operational round status; this is a local demo bridge.
+  try {
+    const config = JSON.parse(localStorage.getItem('kreenAdminConfiguration') || '{}');
+    if (Array.isArray(config.contestants)) config.contestants.forEach(function (master) { const person = contestants.find(function (item) { return item.id === Number(master.id); }); if (person) { person.name = master.name; person.country = master.country; if (master.photoCleared) person.photo = ''; else if (master.photo) person.photo = judgePhotoPath(master.photo, person.id); } });
+    const criterionKeys = { 'evening-gown': 'eveningGown', 'stage-presence': 'stagePresence', 'final-question': 'finalQuestion', 'overall-impression': 'overallImpression' };
+    rounds.forEach(function (round) { if (config.roundStatusById && config.roundStatusById[round.id]) round.status = config.roundStatusById[round.id]; round.resultsVisibleToJudges = !!(config.resultVisibilityByRound && config.resultVisibilityByRound[round.id]); });
+    rounds.forEach(function (round) {
+      if (config.contestantAssignments && Array.isArray(config.contestantAssignments[round.id])) round.contestantIds = config.contestantAssignments[round.id].map(Number);
+      if (config.criteriaByRound && Array.isArray(config.criteriaByRound[round.id])) {
+        const items = config.criteriaByRound[round.id].slice().sort(function (a, b) { return a.sequence - b.sequence; });
+        const sections = [];
+        items.forEach(function (item) { if (!item.isScored || item.isParent) { if (item.isParent) sections.push({ heading: item.name, weight: 0, parentId: item.id, criteria: [] }); return; } const criterion = { key: criterionKeys[item.id] || item.id, label: item.name, weight: Number(item.weight), standalone: !item.parentId }; let section = item.parentId && sections.find(function (entry) { return String(entry.parentId) === String(item.parentId); }); if (!section) { section = { heading: item.name, weight: 0, criteria: [] }; sections.push(section); } section.criteria.push(criterion); section.weight += criterion.weight; });
+        if (sections.length) round.criteriaSections = sections;
+      }
+    });
+  } catch (e) {}
+  rounds.forEach(function (round) {
+    round.criteriaList = round.criteriaSections.reduce(function (list, section) { return list.concat(section.criteria); }, []);
+    round.criteriaKeys = round.criteriaList.map(function (criterion) { return criterion.key; });
+  });
+
   window.JudgePrototypeData = {
     event: { name: 'King & Queen of the Pacific', year: 2026, logo: '../assets/images/kqp-logo.png' },
     judge: { number: 3, name: 'Amanda Wijaya' },
     round: { name: 'Preliminary' },
+    rounds: rounds,
+    getRound: function (id) { return rounds.find(function (round) { return round.id === Number(id); }) || null; },
+    getRoundContestants: function (id) { const round = rounds.find(function (item) { return item.id === Number(id); }); return round ? round.contestantIds.map(function (contestantId) { return contestants.find(function (contestant) { return contestant.id === contestantId; }); }).filter(Boolean) : []; },
+    getRoundCriteria: function (id) { const round = rounds.find(function (item) { return item.id === Number(id); }); return round ? round.criteriaList : []; },
+    getRoundSections: function (id) { const round = rounds.find(function (item) { return item.id === Number(id); }); return round ? round.criteriaSections : []; },
     scoringSections: scoringSections,
     criteriaList: criteriaList,
     criteriaKeys: criteriaKeys,

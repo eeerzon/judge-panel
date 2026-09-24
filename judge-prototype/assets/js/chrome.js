@@ -43,6 +43,7 @@
   function initDevPanel() {
     const panel = document.getElementById('dev-panel');
     if (!panel) return;
+    if (!Nav.isPreviewMode()) { panel.hidden = true; return; }
 
     const toggle = document.getElementById('dev-panel-toggle');
     const body = document.getElementById('dev-panel-body');
@@ -97,15 +98,6 @@
     const timeoutValueEl = document.getElementById('dev-timeout-value');
     if (timeoutValueEl) timeoutValueEl.textContent = String(window.JudgeChrome.STANDBY_TIMEOUT_MS / 1000);
 
-    const resetBtn = document.getElementById('dev-reset-prototype');
-    if (resetBtn) {
-      resetBtn.addEventListener('click', function () {
-        if (window.confirm('Reset prototype data?')) {
-          S.resetState();
-          window.location.reload();
-        }
-      });
-    }
   }
 
   const STANDBY_TIMEOUT_MS = 45000; // short on purpose for demo/testing

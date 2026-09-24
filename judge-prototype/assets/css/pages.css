@@ -1,7 +1,7 @@
 /* ============================================================
    Multi-page refactor additions only — preview-mode banner (shown when a
    page is opened with ?preview=1) and the dev-only prototype launcher
-   (index.html). Nothing here affects the frozen judge-facing screens.
+   (dev.html). Product entry styles live in entry.css.
    ============================================================ */
 
 .preview-banner {
@@ -20,8 +20,17 @@
 .preview-banner[hidden] {
   display: none !important;
 }
+body:not([data-dev-preview]) .dev-panel { display: none !important; }
 
-/* ---- Prototype launcher (index.html) — deliberately plain/utilitarian,
+/* Product account actions on Judge home; developer controls stay preview-only. */
+.judge-account-bar { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 30px; }
+.judge-account-role { color: var(--text-secondary); font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.judge-account-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; max-width: 100%; }
+.judge-account-actions .judge-btn[hidden], .judge-profile-note[hidden] { display: none; }
+.judge-profile-note { margin: -17px 0 24px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+@media (max-width: 520px) { .judge-account-bar { margin-bottom: 26px; } .judge-account-actions { gap: 8px; } }
+
+/* ---- Prototype launcher (dev.html) — deliberately plain/utilitarian,
    not styled like the judge-facing product. ---- */
 
 .launcher-body {
@@ -33,6 +42,17 @@
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-ui);
+}
+
+/* The launcher intentionally loads only tokens.css + pages.css, unlike the
+   judge pages which also load components.css (where the global box-sizing
+   reset lives). Keep the reset local to the launcher so its 100%-wide grid
+   buttons include their padding/border and never overflow into the next
+   preview column when opened directly in Safari through file://. */
+.launcher-body *,
+.launcher-body *::before,
+.launcher-body *::after {
+  box-sizing: border-box;
 }
 
 .launcher-card {
@@ -67,7 +87,7 @@
 }
 
 .launcher-section-heading {
-  margin: 28px 0 12px;
+  margin: 30px 0 12px;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -75,32 +95,48 @@
   color: var(--text-secondary);
 }
 
-.launcher-section-heading:first-of-type {
+.launcher-title + .launcher-section-heading {
   margin-top: 0;
 }
 
+.launcher-primary-actions {
+  display: grid;
+  gap: 12px;
+}
+
 .launcher-btn {
-  display: block;
+  display: inline-flex;
   width: 100%;
-  min-height: 52px;
-  margin-bottom: 10px;
-  padding: 0 18px;
+  min-height: 50px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 16px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface-alt);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.25;
   text-align: left;
   cursor: pointer;
   text-decoration: none;
+  transition: border-color .16s ease, background-color .16s ease, transform .16s ease;
 }
 
 .launcher-btn:hover {
   border-color: var(--border-strong);
   background: var(--surface-raised);
 }
+
+.launcher-btn:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 3px;
+}
+
+.launcher-btn:active { transform: translateY(1px); }
 
 .launcher-btn-primary {
   border-color: var(--accent-deep);
@@ -109,23 +145,37 @@
 
 .launcher-btn-primary:hover {
   border-color: var(--accent);
+  background: rgba(200, 155, 75, .2);
 }
 
+.launcher-btn-icon { flex: 0 0 16px; color: var(--accent-bright); font-size: 14px; line-height: 1; text-align: center; }
+.launcher-btn-icon-secondary { color: var(--text-secondary); }
+.launcher-btn-secondary { background: var(--surface-alt); }
+
 .launcher-btn-danger {
-  border-color: var(--status-error-color);
+  min-height: 46px;
+  margin-top: 18px;
+  border-color: rgba(224, 137, 122, .55);
+  background: transparent;
   color: var(--status-error-color);
+  font-size: 15px;
 }
+.launcher-btn-danger:hover { border-color: var(--status-error-color); background: rgba(224, 137, 122, .08); }
 
 .launcher-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.launcher-grid .launcher-btn {
-  margin-bottom: 0;
-  font-size: 13px;
-  min-height: 44px;
+.launcher-btn-preview {
+  min-height: 46px;
+  font-size: 15px;
+}
+
+@media (max-width: 420px) {
+  .launcher-card { padding: 24px; }
+  .launcher-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 .launcher-note {
@@ -134,3 +184,62 @@
   line-height: 1.5;
   color: var(--text-secondary);
 }
+
+/* Phase 3 — Judge Mode round selection. Sparse and immersive; intentionally
+   separate from the denser Admin card language. */
+.my-rounds-shell { min-height: 100vh; background: var(--bg-base); }
+.my-rounds-screen { width: min(100% - 40px, 1040px); margin: 0 auto; padding: clamp(42px, 8vw, 96px) 0 64px; }
+.my-rounds-header { max-width: 680px; margin-bottom: 34px; }
+.my-rounds-header .event-eyebrow { margin: 0; color: var(--accent-bright); font-size: 12px; font-weight: 750; letter-spacing: .16em; text-transform: uppercase; }
+.my-rounds-header .event-year { margin: 7px 0 30px; color: var(--text-secondary); font-size: 14px; }
+.my-rounds-greeting { margin: 0 0 26px; color: var(--text-secondary); font-size: 20px; line-height: 1.45; }
+.my-rounds-greeting strong { color: var(--text-primary); font-weight: 700; }
+.my-rounds-header h1 { margin: 0; color: var(--text-primary); font-size: clamp(34px, 5vw, 52px); letter-spacing: -.035em; text-transform: uppercase; }
+.my-rounds-description { margin: 10px 0 0; color: var(--text-secondary); font-size: 15px; }
+.my-rounds-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.my-round-card { display: flex; flex-direction: column; min-height: 242px; padding: 22px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.my-round-card:hover { border-color: var(--border-strong); background: var(--surface-alt); }
+.my-round-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.my-round-sequence { margin: 0; color: var(--accent); font-size: 11px; font-weight: 750; letter-spacing: .14em; }
+.my-round-status { color: var(--success); font-size: 12px; font-weight: 750; white-space: nowrap; }
+.my-round-status.is-muted { color: var(--text-secondary); }
+.my-round-card h2 { margin: 28px 0 8px; color: var(--text-primary); font-size: 24px; }
+.my-round-contestants { margin: 0; color: var(--text-primary); font-size: 15px; font-weight: 650; }
+.my-round-detail { min-height: 40px; margin: 8px 0 22px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.round-card-action { width: 100%; min-height: 48px; margin-top: auto; border: 1px solid var(--accent-deep); border-radius: 10px; background: var(--accent-soft); color: var(--text-primary); font: inherit; font-size: 14px; font-weight: 750; cursor: pointer; }
+.round-card-action:hover { border-color: var(--accent); }
+.my-round-actions { display: grid; gap: 8px; margin-top: auto; }
+.my-round-actions .round-card-action { margin-top: 0; }
+.round-card-action.is-secondary { border-color: var(--border-strong); background: var(--surface-alt); }
+.round-card-disabled { display: block; min-height: 48px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-secondary); font-size: 13px; text-align: center; }
+.round-unavailable { width: min(100% - 40px, 560px); margin: 0 auto; padding: 18vh 0; color: var(--text-primary); }
+.round-unavailable h1 { margin: 10px 0; font-size: 36px; }
+.round-unavailable p:not(.event-eyebrow) { margin: 0 0 24px; color: var(--text-secondary); }
+.round-unavailable .primary-action { display: inline-flex; align-items: center; min-height: 48px; padding: 0 18px; border: 1px solid var(--accent-deep); border-radius: 10px; color: var(--text-primary); background: var(--accent-soft); text-decoration: none; font-weight: 700; }
+@media (max-width: 900px) { .my-rounds-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 620px) { .my-rounds-screen { width: min(100% - 28px, 520px); padding-top: 36px; } .my-rounds-grid { grid-template-columns: 1fr; } .my-round-card { min-height: 208px; } }
+
+/* Official results is a new Judge screen; existing scoring screens remain unchanged. */
+.judge-results-shell { min-height: 100vh; background: var(--bg-base); }
+.judge-results-screen { width: min(100% - 40px, 900px); margin: 0 auto; padding: clamp(36px, 6vw, 72px) 0 64px; color: var(--text-primary); }
+.judge-results-back { display: inline-flex; align-items: center; min-height: 44px; color: var(--text-secondary); font-size: 13px; font-weight: 700; text-decoration: none; }
+.judge-results-back:hover { color: var(--text-primary); }
+.judge-results-header { margin-bottom: 30px; }
+.judge-results-header .event-eyebrow, .judge-results-unavailable .event-eyebrow { margin: 18px 0 6px; color: var(--accent-bright); font-size: 12px; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }
+.judge-results-round { margin: 0 0 22px; color: var(--text-secondary); font-size: 15px; }
+.judge-results-header h1, .judge-results-unavailable h1 { margin: 0; font-size: clamp(32px, 5vw, 48px); letter-spacing: -.03em; text-transform: uppercase; }
+.judge-results-header > p:last-child, .judge-results-unavailable > p:not(.event-eyebrow) { margin: 9px 0 0; color: var(--text-secondary); font-size: 15px; }
+.judge-results-list { overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.judge-results-row { display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; align-items: center; gap: 18px; min-height: 98px; padding: 17px 24px; border-bottom: 1px solid var(--border); }
+.judge-results-row:last-child { border-bottom: 0; }
+.judge-results-rank { color: var(--accent-bright); font-size: 28px; font-variant-numeric: tabular-nums; }
+.judge-results-rank small { display: block; font-size: 10px; letter-spacing: .08em; }
+.judge-results-number { color: var(--accent); font-size: 12px; font-weight: 750; letter-spacing: .06em; }
+.judge-results-row h2 { margin: 4px 0 2px; font-size: 19px; }
+.judge-results-row p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+.judge-results-score { font-size: 24px; font-variant-numeric: tabular-nums; }
+.judge-results-score small { display: block; color: var(--text-secondary); font-size: 11px; font-weight: 600; text-align: right; }
+.judge-results-note { margin: 18px 0 0; color: var(--text-secondary); font-size: 12px; }
+.judge-results-unavailable { width: min(100%, 560px); margin: 12vh auto; }
+.judge-results-unavailable .judge-results-back { margin-top: 24px; }
+@media (max-width: 620px) { .judge-results-screen { width: min(100% - 28px, 520px); } .judge-results-row { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; min-height: 82px; padding: 13px; } .judge-results-rank { font-size: 22px; } .judge-results-row h2 { font-size: 16px; } .judge-results-score { font-size: 18px; } }

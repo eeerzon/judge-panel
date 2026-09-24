@@ -50,6 +50,34 @@ html, body {
   display: none !important;
 }
 
+/* Reusable low-emphasis Judge actions, including the account header. */
+.judge-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  min-height: 42px;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.judge-btn-secondary { border-color: var(--accent-deep); background: var(--accent-soft); }
+.judge-btn-secondary:hover { border-color: var(--accent-bright); background: rgba(200, 155, 75, .21); }
+.judge-btn-ghost { color: var(--text-secondary); }
+.judge-btn-ghost:hover { border-color: rgba(224, 137, 122, .35); background: rgba(224, 137, 122, .08); color: var(--status-error-color); }
+.judge-btn:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 3px; }
+
 /* ---------------- STANDBY SCREEN ---------------- */
 
 .standby-screen {
@@ -85,6 +113,9 @@ html, body {
   right: 36px;
   z-index: 2;
 }
+
+.standby-rounds-link { position: absolute; top: 0; right: 82px; color: var(--text-secondary); font-size: 13px; text-decoration: none; }
+.standby-rounds-link:hover { color: var(--text-primary); }
 
 .clock {
   font-size: 16px;

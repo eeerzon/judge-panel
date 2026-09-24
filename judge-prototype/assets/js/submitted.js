@@ -12,27 +12,29 @@
 
   window.JudgeChrome.init({ standbyTimeout: false });
 
+  const round = Nav.guardAssignedRound();
+  if (!round) return;
   if (!Nav.guardSubmitted()) return; // already redirected
 
-  document.getElementById('submitted-round').textContent = DATA.round.name;
+  document.getElementById('submitted-round').textContent = round.name;
 
   const statEl = document.getElementById('submitted-stat');
   const timeEl = document.getElementById('submitted-time');
 
   if (Nav.isPreviewMode() && !S.isSubmitted()) {
     // Mocked numbers only — never derived from or written to real state.
-    statEl.textContent = DATA.contestants.length + ' contestants scored';
+    statEl.textContent = DATA.getRoundContestants(round.id).length + ' contestants scored';
     timeEl.textContent = 'Submitted at 21:42';
   } else {
     const counts = S.countByStatus();
     statEl.textContent = counts.total + ' contestants scored';
-    const submittedAt = S.getState().submittedAt;
+    const submittedAt = S.getSubmission(round.id).submittedAt;
     if (submittedAt) {
       const d = new Date(submittedAt);
       timeEl.textContent = 'Submitted at ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     }
   }
 
-  document.getElementById('submitted-return-standby').addEventListener('click', Nav.goToStandby);
-  document.getElementById('submitted-view-scores').addEventListener('click', Nav.goToReview);
+  document.getElementById('submitted-return-standby').addEventListener('click', function () { Nav.goToMyRounds(); });
+  document.getElementById('submitted-view-scores').addEventListener('click', function () { Nav.goToReview(round.id); });
 })();

@@ -1,83 +1,20 @@
-// King & Queen of the Pacific — Judge Panel Prototype
-// Shared navigation helpers + page guards. Every page (pages/*.html) links
-// to another page through these functions instead of a hardcoded relative
-// URL, and calls the matching guard() function before rendering anything
-// state-dependent, so the "can this page be reached right now" rule lives
-// in exactly one place per page.
-
+// Judge Mode navigation and round guards. Every judge page carries ?round=N.
 (function () {
   const S = window.JudgeState;
-
-  function qs(name) {
-    return new URLSearchParams(window.location.search).get(name);
-  }
-
-  // Dev-only escape hatch so every page/state combination can be opened
-  // directly for visual review, without needing to walk the normal flow
-  // first or fake up business state. See PROTOTYPE-NOTES.md — preview mode
-  // never writes to localStorage and never flips isSubmitted for real.
-  function isPreviewMode() {
-    return qs('preview') === '1';
-  }
-
-  function goToStandby() { window.location.href = 'standby.html'; }
-  function goToContestants() { window.location.href = 'contestants.html'; }
-  // `from` ('gallery' | 'review') travels in the URL, not shared JS memory
-  // (there is none across a real page navigation) — scoring.js reads it
-  // back via getScoringOrigin() so Back/last-contestant-Next return to
-  // wherever the judge actually came from instead of always Contestants.
-  function goToScoring(id, from) {
-    const originParam = from ? '&from=' + encodeURIComponent(from) : '';
-    window.location.href = 'scoring.html?id=' + encodeURIComponent(id) + originParam;
-  }
-  function goToReview() { window.location.href = 'review.html'; }
-  function goToSubmitted() { window.location.href = 'submitted.html'; }
-
-  function getScoringOrigin() {
-    return qs('from') === 'review' ? 'review' : 'gallery';
-  }
-
-  // ---- Page guards — each returns true if the page should render normally.
-  // A guard that redirects returns false so the calling page can bail out
-  // (stop its own init) instead of rendering half-built state first.
-
-  // scoring.html?id=X — id must name a real contestant, preview mode aside.
-  function guardScoringId(rawId) {
-    if (isPreviewMode()) {
-      // In preview, fall back to contestant #1 for a blank/invalid id so
-      // the page still has something real to render.
-      const id = Number(rawId);
-      return S.getContestant(id) ? id : window.JudgePrototypeData.contestants[0].id;
-    }
-    const id = Number(rawId);
-    if (!rawId || Number.isNaN(id) || !S.getContestant(id)) {
-      goToContestants();
-      return null;
-    }
-    return id;
-  }
-
-  // submitted.html — only reachable normally once isSubmitted is true.
-  // Preview mode bypasses this to render a mocked "as if submitted" view
-  // without ever touching real stored state.
-  function guardSubmitted() {
-    if (isPreviewMode()) return true;
-    if (!S.isSubmitted()) {
-      goToReview();
-      return false;
-    }
-    return true;
-  }
-
-  window.JudgeNav = {
-    isPreviewMode: isPreviewMode,
-    goToStandby: goToStandby,
-    goToContestants: goToContestants,
-    goToScoring: goToScoring,
-    goToReview: goToReview,
-    goToSubmitted: goToSubmitted,
-    getScoringOrigin: getScoringOrigin,
-    guardScoringId: guardScoringId,
-    guardSubmitted: guardSubmitted,
-  };
+  function qs(name) { return new URLSearchParams(window.location.search).get(name); }
+  function isPreviewMode() { return qs('preview') === '1'; }
+  function withPreview(url) { return url + (isPreviewMode() ? (url.indexOf('?') === -1 ? '?' : '&') + 'preview=1' : ''); }
+  function goToMyRounds() { window.location.href = withPreview('my-rounds.html'); }
+  function goToStandby(id) { window.location.href = withPreview('standby.html?round=' + encodeURIComponent(id || S.getActiveRoundId())); }
+  function goToContestants(id) { window.location.href = withPreview('contestants.html?round=' + encodeURIComponent(id || S.getActiveRoundId())); }
+  function goToScoring(id, from, roundId) { window.location.href = withPreview('scoring.html?round=' + encodeURIComponent(roundId || S.getActiveRoundId()) + '&id=' + encodeURIComponent(id) + (from ? '&from=' + encodeURIComponent(from) : '')); }
+  function goToReview(id) { window.location.href = withPreview('review.html?round=' + encodeURIComponent(id || S.getActiveRoundId())); }
+  function goToSubmitted(id) { window.location.href = withPreview('submitted.html?round=' + encodeURIComponent(id || S.getActiveRoundId())); }
+  function goToResults(id) { window.location.href = 'results.html?round=' + encodeURIComponent(id || S.getActiveRoundId()); }
+  function showUnavailable() { const shell = document.querySelector('.app-shell'); if (shell) shell.innerHTML = '<main class="round-unavailable" role="alert"><p class="event-eyebrow">Judge Mode</p><h1>Round unavailable</h1><p>This round is not assigned to you.</p><a class="primary-action" href="my-rounds.html">Back to My Rounds</a></main>'; }
+  function resolveRound() { const raw = qs('round'); const id = Number(raw); if (!raw || Number.isNaN(id) || !window.JudgePrototypeData.getRound(id)) { if (isPreviewMode()) { S.setActiveRound(1, false); return 1; } showUnavailable(); return null; } S.setActiveRound(id, !isPreviewMode()); return id; }
+  function guardAssignedRound() { const id = resolveRound(); if (!id) return null; if (!isPreviewMode() && !S.canJudgeRound(id) && !S.getSubmission(id).isSubmitted) { showUnavailable(); return null; } return window.JudgePrototypeData.getRound(id); }
+  function guardScoringId(rawId) { if (!guardAssignedRound()) return null; if (!isPreviewMode() && !S.canJudgeRound(S.getActiveRoundId()) && !S.isSubmitted()) { showUnavailable(); return null; } const id = Number(rawId); const contestant = S.getContestant(id); if (isPreviewMode()) return contestant ? id : window.JudgePrototypeData.getRoundContestants(S.getActiveRoundId())[0].id; if (!rawId || Number.isNaN(id) || !contestant) { goToContestants(); return null; } return id; }
+  function guardSubmitted() { if (isPreviewMode()) return true; if (!S.isSubmitted()) { goToReview(); return false; } return true; }
+  window.JudgeNav = { isPreviewMode, goToMyRounds, goToStandby, goToContestants, goToScoring, goToReview, goToSubmitted, goToResults, getScoringOrigin: function () { return qs('from') === 'review' ? 'review' : 'gallery'; }, resolveRound, guardAssignedRound, guardScoringId, guardSubmitted };
 })();

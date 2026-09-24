@@ -9,6 +9,10 @@
 
   window.JudgeChrome.init();
 
+  const round = Nav.guardAssignedRound();
+  if (!round) return;
+  const contestants = DATA.getRoundContestants(round.id);
+  const scoringSections = DATA.getRoundSections(round.id);
   const rawId = new URLSearchParams(window.location.search).get('id');
   const contestantId = Nav.guardScoringId(rawId);
   if (contestantId === null) return; // guard already redirected
@@ -16,7 +20,7 @@
   const readOnly = S.isSubmitted() || Nav.isPreviewMode();
   const scoringOrigin = Nav.getScoringOrigin();
 
-  document.getElementById('scoring-round').textContent = DATA.round.name;
+  document.getElementById('scoring-round').textContent = round.name;
 
   const backBtn = document.getElementById('scoring-back');
   const positionEl = document.getElementById('scoring-position');
@@ -36,8 +40,8 @@
   const backLabel = scoringOrigin === 'review' ? 'Review' : 'Contestants';
   backBtn.textContent = '← ' + backLabel;
   backBtn.addEventListener('click', function () {
-    if (scoringOrigin === 'review') Nav.goToReview();
-    else Nav.goToContestants();
+    if (scoringOrigin === 'review') Nav.goToReview(round.id);
+    else Nav.goToContestants(round.id);
   });
 
   let editingKey = null;
@@ -221,7 +225,7 @@
     const contestant = S.getContestant(contestantId);
     const numberLabel = '#' + String(contestant.number).padStart(2, '0');
 
-    positionEl.textContent = String(contestant.number).padStart(2, '0') + ' / ' + DATA.contestants.length;
+    positionEl.textContent = String(contestants.indexOf(contestant) + 1).padStart(2, '0') + ' / ' + contestants.length;
     photoImg.src = contestant.photo;
     numberEl.textContent = numberLabel;
     nameEl.textContent = contestant.name;
@@ -245,10 +249,10 @@
       ? '<div class="scoring-lock-banner"><span class="scoring-lock-badge">Submitted</span>' +
         '<span>Your scores have been submitted and can no longer be edited.</span></div>'
       : '';
-    scrollEl.innerHTML = lockBannerHtml + DATA.scoringSections.map(renderSection).join('') + renderNoteBlock();
+    scrollEl.innerHTML = lockBannerHtml + scoringSections.map(renderSection).join('') + renderNoteBlock();
 
     prevBtn.disabled = contestant.number === 1;
-    const isLast = contestant.number === DATA.contestants.length;
+    const isLast = contestants.indexOf(contestant) === contestants.length - 1;
     nextBtn.disabled = false;
     if (readOnly) {
       nextBtn.textContent = isLast ? ('Back to ' + backLabel + ' →') : 'Next →';
@@ -322,19 +326,21 @@
   prevBtn.addEventListener('click', function () {
     if (!validateBeforeLeaving()) return;
     const contestant = S.getContestant(contestantId);
-    if (contestant.number > 1) Nav.goToScoring(DATA.contestants[contestant.number - 2].id, scoringOrigin);
+    const position = contestants.indexOf(contestant);
+    if (position > 0) Nav.goToScoring(contestants[position - 1].id, scoringOrigin, round.id);
   });
 
   nextBtn.addEventListener('click', function () {
     if (!validateBeforeLeaving()) return;
     if (!readOnly) triggerAutosave();
     const contestant = S.getContestant(contestantId);
-    if (contestant.number < DATA.contestants.length) {
-      Nav.goToScoring(DATA.contestants[contestant.number].id, scoringOrigin);
+    const position = contestants.indexOf(contestant);
+    if (position < contestants.length - 1) {
+      Nav.goToScoring(contestants[position + 1].id, scoringOrigin, round.id);
     } else if (scoringOrigin === 'review') {
-      Nav.goToReview();
+      Nav.goToReview(round.id);
     } else {
-      Nav.goToContestants();
+      Nav.goToContestants(round.id);
     }
   });
 
