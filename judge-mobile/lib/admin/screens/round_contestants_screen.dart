@@ -12,7 +12,7 @@ import '../widgets/round_workspace.dart';
 
 class AdminRoundContestantsScreen extends StatefulWidget {
   const AdminRoundContestantsScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   State<AdminRoundContestantsScreen> createState() => _State();
@@ -32,20 +32,39 @@ class _State extends State<AdminRoundContestantsScreen> {
     final assignedIds = admin.getRoundContestants(roundId).map((c) => c.id).toSet();
     final advancement = admin.getAdvancementForTarget(roundId);
     final source = advancement == null ? null : admin.getRound(advancement.sourceRoundId);
-    final differs = advancement != null &&
+    final differs =
+        advancement != null &&
         (assignedIds.length != advancement.selectedContestantIds.length ||
             assignedIds.any((id) => !advancement.selectedContestantIds.contains(id)));
     final list = all
-        .where((c) => '${c.number} ${c.name} ${c.profesi}'.toLowerCase().contains(_term.toLowerCase()))
+        .where((c) => '${c.number} ${c.name} ${c.details}'.toLowerCase().contains(_term.toLowerCase()))
         .toList();
     final compact = AdminLayout.compact(context);
 
-    final actions = Wrap(spacing: 8, runSpacing: 8, children: [
-      AdminBtn('Select All', small: true, onTap: locked ? null : () => setState(() => _selected.addAll(list.map((c) => c.id)))),
-      AdminBtn('Clear Selection', small: true, onTap: locked ? null : () => setState(_selected.clear)),
-      AdminBtn('Add Selected', small: true, variant: AdminBtnVariant.primary, onTap: locked ? null : () => _apply(admin, add: true)),
-      AdminBtn('Remove Selected', small: true, variant: AdminBtnVariant.danger, onTap: locked ? null : () => _apply(admin, add: false)),
-    ]);
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        AdminBtn(
+          'Select All',
+          small: true,
+          onTap: locked ? null : () => setState(() => _selected.addAll(list.map((c) => c.id))),
+        ),
+        AdminBtn('Clear Selection', small: true, onTap: locked ? null : () => setState(_selected.clear)),
+        AdminBtn(
+          'Add Selected',
+          small: true,
+          variant: AdminBtnVariant.primary,
+          onTap: locked ? null : () => _apply(admin, add: true),
+        ),
+        AdminBtn(
+          'Remove Selected',
+          small: true,
+          variant: AdminBtnVariant.danger,
+          onTap: locked ? null : () => _apply(admin, add: false),
+        ),
+      ],
+    );
 
     return RoundWorkspace(
       roundId: roundId,
@@ -56,57 +75,86 @@ class _State extends State<AdminRoundContestantsScreen> {
         ConfigLockNote(locked: locked),
         if (advancement != null) ...[
           AdminLockNote(
-              'Source: Advanced from ${source?.name}. Any Draft-round adjustment requires a reason; the official source result stays unchanged.'),
+            'Source: Advanced from ${source?.name}. Any Draft-round adjustment requires a reason; the official source result stays unchanged.',
+          ),
           if (differs) ...[
             const AdminWarning(
-                child: Text('Current contestant assignment differs from confirmed advancement. Adjustment reasons are retained in history.')),
+              child: Text(
+                'Current contestant assignment differs from confirmed advancement. Adjustment reasons are retained in history.',
+              ),
+            ),
             const SizedBox(height: 16),
           ],
         ],
         Padding(
           padding: const EdgeInsets.only(bottom: 16),
-          child: Text.rich(TextSpan(children: [
-            TextSpan(text: '${assignedIds.length} of ${all.length}', style: ts(13, weight: FontWeight.w700)),
-            const TextSpan(text: ' assigned'),
-          ]), style: ts(13, color: AppColors.textSecondary)),
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: '${assignedIds.length} of ${all.length}',
+                  style: ts(13, weight: FontWeight.w700),
+                ),
+                const TextSpan(text: ' assigned'),
+              ],
+            ),
+            style: ts(13, color: AppColors.textSecondary),
+          ),
         ),
         ReadinessSummary(store: admin, roundId: roundId),
         AdminPanel(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
-              child: compact
-                  ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      AdminSearchField(hint: 'Search number, name', onChanged: (t) => setState(() => _term = t)),
-                      const SizedBox(height: 14),
-                      actions,
-                    ])
-                  : Row(children: [
-                      Expanded(
-                          child: AdminSearchField(
-                              hint: 'Search number, name', onChanged: (t) => setState(() => _term = t))),
-                      const SizedBox(width: 14),
-                      Flexible(child: Align(alignment: Alignment.centerRight, child: actions)),
-                    ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(children: [
-                for (final (i, c) in list.indexed) ...[
-                  if (i > 0) const SizedBox(height: 8),
-                  _AssignmentCard(
-                    contestant: c,
-                    assigned: assignedIds.contains(c.id),
-                    selected: _selected.contains(c.id),
-                    onSelect: locked
-                        ? null
-                        : (v) => setState(() => v ? _selected.add(c.id) : _selected.remove(c.id)),
-                  ),
-                ],
-              ]),
-            ),
-          ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: AppColors.border)),
+                ),
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          AdminSearchField(hint: 'Search number, name', onChanged: (t) => setState(() => _term = t)),
+                          const SizedBox(height: 14),
+                          actions,
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: AdminSearchField(
+                              hint: 'Search number, name',
+                              onChanged: (t) => setState(() => _term = t),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Flexible(
+                            child: Align(alignment: Alignment.centerRight, child: actions),
+                          ),
+                        ],
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  children: [
+                    for (final (i, c) in list.indexed) ...[
+                      if (i > 0) const SizedBox(height: 8),
+                      _AssignmentCard(
+                        contestant: c,
+                        assigned: assignedIds.contains(c.id),
+                        selected: _selected.contains(c.id),
+                        onSelect: locked
+                            ? null
+                            : (v) => setState(() => v ? _selected.add(c.id) : _selected.remove(c.id)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -120,22 +168,28 @@ class _State extends State<AdminRoundContestantsScreen> {
       ids = add ? (ids.contains(id) ? ids : [...ids, id]) : ids.where((e) => e != id).toList();
     }
     // Feedback: how many actually changed (already-assigned ones are skipped).
-    final changed = add ? ids.where((id) => !before.contains(id)).length : before.where((id) => !ids.contains(id)).length;
+    final changed = add
+        ? ids.where((id) => !before.contains(id)).length
+        : before.where((id) => !ids.contains(id)).length;
     final roundName = admin.getRound(roundId)?.name ?? 'this round';
     final noun = changed == 1 ? 'contestant' : 'contestants';
     final message = changed == 0
-        ? (add ? 'The selected contestants are already in $roundName.' : 'None of the selected contestants are in $roundName.')
+        ? (add
+              ? 'The selected contestants are already in $roundName.'
+              : 'None of the selected contestants are in $roundName.')
         : add
-            ? '$changed $noun added to $roundName.'
-            : '$changed $noun removed from $roundName.';
+        ? '$changed $noun added to $roundName.'
+        : '$changed $noun removed from $roundName.';
     void notify(String text) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar() // the latest result replaces an older message
-        ..showSnackBar(SnackBar(
-        backgroundColor: AppColors.surfaceRaised,
-        content: Text(text, style: ts(14)),
-      ));
+        ..showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.surfaceRaised,
+            content: Text(text, style: ts(14)),
+          ),
+        );
     }
 
     if (_selected.isEmpty) return notify('Select contestants first.');
@@ -167,7 +221,12 @@ class _State extends State<AdminRoundContestantsScreen> {
 }
 
 class _AssignmentCard extends StatelessWidget {
-  const _AssignmentCard({required this.contestant, required this.assigned, required this.selected, required this.onSelect});
+  const _AssignmentCard({
+    required this.contestant,
+    required this.assigned,
+    required this.selected,
+    required this.onSelect,
+  });
   final ContestantMaster contestant;
   final bool assigned, selected;
   final ValueChanged<bool>? onSelect;
@@ -177,38 +236,56 @@ class _AssignmentCard extends StatelessWidget {
     final tiny = AdminLayout.tiny(context);
     final photoSize = tiny ? 92.0 : 112.0;
     final chip = AssignChip(assigned: assigned);
-    return Container(
-      constraints: const BoxConstraints(minHeight: 138),
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+    final select = onSelect;
+    // The whole card toggles the checkbox (not only the small box).
+    return Material(
+      color: AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(children: [
-        AdminCheckbox(value: selected, onChanged: onSelect),
-        const SizedBox(width: 10),
-        Container(
-          width: photoSize,
-          height: photoSize,
-          clipBehavior: Clip.antiAlias,
+        onTap: select == null ? null : () => select(!selected),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 138),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.borderStrong),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
           ),
-          child: AdminPhoto(photo: contestant.photo, name: contestant.name, fit: BoxFit.contain),
+          child: Row(
+            children: [
+              AdminCheckbox(value: selected, onChanged: onSelect),
+              const SizedBox(width: 10),
+              Container(
+                width: photoSize,
+                height: photoSize,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.borderStrong),
+                ),
+                child: AdminPhoto(photo: contestant.photo, name: contestant.name, fit: BoxFit.contain),
+              ),
+              const SizedBox(width: 17),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${contestant.numberLabel} · ${contestant.name}',
+                      style: ts(15, weight: FontWeight.w700, height: 1.3),
+                    ),
+                    const SizedBox(height: 6),
+                    if (contestant.details.isNotEmpty)
+                      Text(contestant.details, style: ts(13, color: AppColors.textSecondary, height: 1.35)),
+                    if (tiny) ...[const SizedBox(height: 10), chip],
+                  ],
+                ),
+              ),
+              if (!tiny) ...[const SizedBox(width: 14), chip],
+            ],
+          ),
         ),
-        const SizedBox(width: 17),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${contestant.numberLabel} · ${contestant.name}', style: ts(15, weight: FontWeight.w700, height: 1.3)),
-            const SizedBox(height: 6),
-            Text(contestant.profesi, style: ts(13, color: AppColors.textSecondary, height: 1.35)),
-            if (tiny) ...[const SizedBox(height: 10), chip],
-          ]),
-        ),
-        if (!tiny) ...[const SizedBox(width: 14), chip],
-      ]),
+      ),
     );
   }
 }
@@ -220,16 +297,18 @@ class AssignChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(minHeight: 30),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
-        decoration: BoxDecoration(
-          color: assigned ? AdminColors.successTint : AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: assigned ? AdminColors.successBorder : AppColors.border),
-        ),
-        child: Text(assigned ? 'Assigned' : 'Unassigned',
-            style: ts(12, weight: FontWeight.w700, color: assigned ? AppColors.success : AppColors.textSecondary)),
-      );
+    constraints: const BoxConstraints(minHeight: 30),
+    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
+    decoration: BoxDecoration(
+      color: assigned ? AdminColors.successTint : AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: assigned ? AdminColors.successBorder : AppColors.border),
+    ),
+    child: Text(
+      assigned ? 'Assigned' : 'Unassigned',
+      style: ts(12, weight: FontWeight.w700, color: assigned ? AppColors.success : AppColors.textSecondary),
+    ),
+  );
 }
 
 /// Draft vs locked note shared by the configuration tabs.
@@ -239,18 +318,18 @@ class ConfigLockNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AdminLockNote(
-        locked
-            ? 'Round configuration is locked while judging is open.'
-            : 'Draft configuration can be edited before opening the round.',
-        locked: locked,
-      );
+    locked
+        ? 'Round configuration is locked while judging is open.'
+        : 'Draft configuration can be edited before opening the round.',
+    locked: locked,
+  );
 }
 
 /// `.admin-readiness-summary` (4 facts; 2 columns on compact).
 class ReadinessSummary extends StatelessWidget {
   const ReadinessSummary({super.key, required this.store, required this.roundId});
   final AdminStore store;
-  final int roundId;
+  final String roundId;
 
   @override
   Widget build(BuildContext context) {
@@ -278,11 +357,14 @@ class ReadinessSummary extends StatelessWidget {
             Container(
               color: AppColors.surface,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(value, style: ts(20, weight: FontWeight.w700, tabular: true)),
-                const SizedBox(height: 5),
-                Text(label, style: ts(12, color: AppColors.textSecondary)),
-              ]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value, style: ts(20, weight: FontWeight.w700, tabular: true)),
+                  const SizedBox(height: 5),
+                  Text(label, style: ts(12, color: AppColors.textSecondary)),
+                ],
+              ),
             ),
         ],
       ),

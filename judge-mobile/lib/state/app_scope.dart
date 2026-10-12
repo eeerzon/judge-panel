@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../admin/admin_scope.dart';
 import '../admin/admin_store.dart';
+import '../theme/appearance.dart';
 import '../theme/judge_theme.dart';
 import 'judge_store.dart';
 import 'session_store.dart';
@@ -9,7 +10,15 @@ import 'session_store.dart';
 /// Makes the stores available to the widget tree. Widgets that call
 /// [JudgeScope.of] rebuild whenever the JudgeStore notifies.
 class AppScope extends StatefulWidget {
-  const AppScope({super.key, required this.judge, required this.session, required this.admin, this.themes, required this.child});
+  const AppScope({
+    super.key,
+    required this.judge,
+    required this.session,
+    required this.admin,
+    this.themes,
+    this.appearance,
+    required this.child,
+  });
 
   final JudgeStore judge;
   final AdminStore admin;
@@ -17,6 +26,9 @@ class AppScope extends StatefulWidget {
 
   /// Judge Mode theme per event (in memory when omitted, e.g. in tests).
   final JudgeThemeStore? themes;
+
+  /// Night / light mode (night, in memory, when omitted).
+  final AppearanceStore? appearance;
   final Widget child;
 
   @override
@@ -25,6 +37,7 @@ class AppScope extends StatefulWidget {
 
 class _AppScopeState extends State<AppScope> {
   late final JudgeThemeStore _themes = widget.themes ?? JudgeThemeStore();
+  late final AppearanceStore _appearance = widget.appearance ?? AppearanceStore();
 
   @override
   void initState() {
@@ -51,7 +64,10 @@ class _AppScopeState extends State<AppScope> {
         notifier: widget.judge,
         child: AdminScope(
           notifier: widget.admin,
-          child: JudgeThemeScope(notifier: _themes, child: widget.child),
+          child: JudgeThemeScope(
+            notifier: _themes,
+            child: AppearanceScope(notifier: _appearance, child: widget.child),
+          ),
         ),
       ),
     );
@@ -88,4 +104,14 @@ class SessionScope extends InheritedNotifier<SessionStore> {
 
   static SessionStore read(BuildContext context) =>
       context.getInheritedWidgetOfExactType<SessionScope>()!.notifier!;
+}
+
+class AppearanceScope extends InheritedNotifier<AppearanceStore> {
+  const AppearanceScope({super.key, required super.notifier, required super.child});
+
+  static AppearanceStore of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AppearanceScope>()!.notifier!;
+
+  static AppearanceStore read(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<AppearanceScope>()!.notifier!;
 }

@@ -10,12 +10,15 @@ import '../admin_scope.dart';
 import '../../widgets/common.dart' show BackLink;
 import '../widgets/admin_ui.dart';
 import '../widgets/round_workspace.dart';
-import 'round_results_screen.dart' show ResultAvatar;
+import 'round_results_screen.dart' show ResultAvatar, ResultScaleToggle, resultScoreText;
 import 'submission_detail_screen.dart' show FactGrid, ScoreBreakdown;
 
 class AdminResultDetailScreen extends StatelessWidget {
   const AdminResultDetailScreen({super.key, required this.roundId, required this.contestantId});
-  final int roundId, contestantId;
+  final String roundId;
+
+  /// The app's local contestant id.
+  final int contestantId;
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +26,8 @@ class AdminResultDetailScreen extends StatelessWidget {
     final result = admin.calculateRoundResults(roundId);
     void back() => AdminNav.round(context, AdminRoutes.roundResults, roundId);
     final item = result.available ? result.items.where((i) => i.contestantId == contestantId).firstOrNull : null;
+    final percent = admin.resultsAsPercent;
+    final rawMax = admin.rawMaxScore(roundId);
 
     return RoundWorkspace(
       roundId: roundId,
@@ -40,6 +45,8 @@ class AdminResultDetailScreen extends StatelessWidget {
         else ...[
           Align(alignment: Alignment.centerLeft, child: BackLink('Results', onTap: back)),
           const SizedBox(height: 10),
+          ResultScaleToggle(roundId: roundId),
+          const SizedBox(height: 16),
           AdminPanel(
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -48,7 +55,7 @@ class AdminResultDetailScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    AdminEyebrow('${item.numberLabel} · ${item.profesi}'),
+                    AdminEyebrow([item.numberLabel, if (item.profesi.isNotEmpty) item.profesi].join(' · ')),
                     const SizedBox(height: 7),
                     Text.rich(TextSpan(children: [
                       TextSpan(text: item.name, style: ts(23, weight: FontWeight.w700)),
@@ -61,7 +68,10 @@ class AdminResultDetailScreen extends StatelessWidget {
               const SizedBox(height: 20),
               FactGrid(facts: [
                 ('Rank', '${item.rank}'),
-                ('Combined Score', '${item.combinedScore.toStringAsFixed(2)} / 100'),
+                ('Combined Score', () {
+                  final (value, outOf) = resultScoreText(item, percent: percent, rawMax: rawMax);
+                  return '$value$outOf';
+                }()),
                 ('Eligible Judges', '${item.eligibleJudgeCount}'),
                 ('Result status', result.finalized ? 'Finalized' : 'Provisional'),
               ]),
@@ -74,7 +84,12 @@ class AdminResultDetailScreen extends StatelessWidget {
           AdminPanel(
             child: Column(children: [
               for (final (i, j) in item.judgeScores.indexed)
-                _JudgeRow(entry: j, first: i == 0, criteria: [for (final c in admin.scoredCriteria(roundId)) (c.id, c.name)]),
+                _JudgeRow(
+                  entry: j,
+                  first: i == 0,
+                  percent: percent,
+                  criteria: [for (final c in admin.scoredCriteria(roundId)) (c.id, c.name)],
+                ),
             ]),
           ),
         ],
@@ -84,9 +99,12 @@ class AdminResultDetailScreen extends StatelessWidget {
 }
 
 class _JudgeRow extends StatefulWidget {
-  const _JudgeRow({required this.entry, required this.first, required this.criteria});
+  const _JudgeRow({required this.entry, required this.first, required this.criteria, this.percent = true});
   final JudgeScoreEntry entry;
   final bool first;
+
+  /// Judge total: weighted 0–100 (true) or the raw sum of criterion scores.
+  final bool percent;
   final List<(String, String)> criteria;
 
   @override
@@ -103,7 +121,8 @@ class _JudgeRowState extends State<_JudgeRow> {
         style: ts(12,
             weight: j.included ? FontWeight.w700 : FontWeight.w400,
             color: j.included ? AppColors.success : AppColors.textSecondary));
-    final total = Text(j.total == null ? '—' : j.total!.toStringAsFixed(2), style: ts(14, weight: FontWeight.w700, tabular: true));
+    final shown = widget.percent ? j.total?.toStringAsFixed(2) : (j.rawTotal == null ? null : pct(j.rawTotal!));
+    final total = Text(shown ?? '—', style: ts(14, weight: FontWeight.w700, tabular: true));
     final tiny = AdminLayout.tiny(context);
     return Container(
       decoration: BoxDecoration(border: widget.first ? null : Border(top: BorderSide(color: AppColors.border))),

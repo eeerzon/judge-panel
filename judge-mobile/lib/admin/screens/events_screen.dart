@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../navigation/judge_nav.dart';
 import '../../state/app_scope.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/appearance_toggle.dart';
 import '../../widgets/common.dart' show MaxWidth, Pressable;
 import '../admin_models.dart';
 import '../admin_nav.dart';
@@ -217,6 +218,8 @@ class _TopBar extends StatelessWidget {
                 style: ts(12, color: AppColors.textSecondary)),
           ]),
         ),
+        const SizedBox(width: 8),
+        const AppearanceToggle(),
         const SizedBox(width: 12),
         if (session.canJudge) ...[
           link('switch', 'Switch to Judge Mode', () => JudgeNav.goToMyRounds(context)),

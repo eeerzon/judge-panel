@@ -14,7 +14,7 @@ import 'round_contestants_screen.dart' show ConfigLockNote, ReadinessSummary;
 
 class AdminCriteriaScreen extends StatelessWidget {
   const AdminCriteriaScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   Widget build(BuildContext context) {

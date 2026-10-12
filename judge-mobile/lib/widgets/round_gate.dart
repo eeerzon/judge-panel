@@ -15,7 +15,7 @@ import 'common.dart';
 class RoundGate extends StatefulWidget {
   const RoundGate({super.key, required this.roundId, required this.builder});
 
-  final int roundId;
+  final String roundId;
   final Widget Function(BuildContext context, JudgeStore store) builder;
 
   @override

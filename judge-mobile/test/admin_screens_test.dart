@@ -23,15 +23,15 @@ void main() {
     (AdminRoutes.results, null),
     (AdminRoutes.settings, null),
     (AdminRoutes.audit, null),
-    (AdminRoutes.roundOverview, const AdminRoundArgs(1)),
-    (AdminRoutes.roundOverview, const AdminRoundArgs(2)),
-    (AdminRoutes.monitoring, const AdminRoundArgs(1)),
-    (AdminRoutes.submission, const AdminRoundArgs(1, judgeId: 3)),
-    (AdminRoutes.roundContestants, const AdminRoundArgs(2)),
-    (AdminRoutes.roundJudges, const AdminRoundArgs(1)),
-    (AdminRoutes.criteria, const AdminRoundArgs(1)),
-    (AdminRoutes.roundResults, const AdminRoundArgs(1)),
-    (AdminRoutes.roundResults, const AdminRoundArgs(9)),
+    (AdminRoutes.roundOverview, const AdminRoundArgs('1')),
+    (AdminRoutes.roundOverview, const AdminRoundArgs('2')),
+    (AdminRoutes.monitoring, const AdminRoundArgs('1')),
+    (AdminRoutes.submission, const AdminRoundArgs('1', judgeId: '3')),
+    (AdminRoutes.roundContestants, const AdminRoundArgs('2')),
+    (AdminRoutes.roundJudges, const AdminRoundArgs('1')),
+    (AdminRoutes.criteria, const AdminRoundArgs('1')),
+    (AdminRoutes.roundResults, const AdminRoundArgs('1')),
+    (AdminRoutes.roundResults, const AdminRoundArgs('9')),
   ];
 
   for (final size in [const Size(1280, 800), const Size(1024, 700), const Size(852, 393), const Size(740, 390)]) {
@@ -64,20 +64,20 @@ void main() {
       }
 
       // Results + detail + advancement after running the lifecycle.
-      admin.updateJudgeAssignment(1, 4, 'excuse', 'x');
-      admin.updateJudgeAssignment(1, 5, 'excuse', 'x');
-      admin.closeRound(1);
+      admin.updateJudgeAssignment('1', '4', 'excuse', 'x');
+      admin.updateJudgeAssignment('1', '5', 'excuse', 'x');
+      admin.closeRound('1');
       for (final (route, args) in [
-        (AdminRoutes.roundResults, const AdminRoundArgs(1)),
-        (AdminRoutes.resultDetail, AdminRoundArgs(1, contestantId: admin.calculateRoundResults(1).items.first.contestantId)),
+        (AdminRoutes.roundResults, const AdminRoundArgs('1')),
+        (AdminRoutes.resultDetail, AdminRoundArgs('1', contestantId: admin.calculateRoundResults('1').items.first.contestantId)),
       ]) {
         key.currentState!.pushReplacementNamed(route, arguments: args);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: route);
       }
-      if (admin.calculateRoundResults(1).hasTie) admin.acknowledgeTie(1);
-      admin.finalizeResults(1);
-      key.currentState!.pushReplacementNamed(AdminRoutes.advancement, arguments: const AdminRoundArgs(1));
+      if (admin.calculateRoundResults('1').hasTie) admin.acknowledgeTie('1');
+      admin.finalizeResults('1');
+      key.currentState!.pushReplacementNamed(AdminRoutes.advancement, arguments: const AdminRoundArgs('1'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: 'advancement');
       expect(find.text('10 / 10 selected'), findsOneWidget);
@@ -100,7 +100,7 @@ void main() {
         theme: buildAppTheme(),
         onGenerateRoute: JudgeNav.onGenerateRoute,
         onGenerateInitialRoutes: (_) => [
-          JudgeNav.onGenerateRoute(const RouteSettings(name: AdminRoutes.monitoring, arguments: AdminRoundArgs(1))),
+          JudgeNav.onGenerateRoute(const RouteSettings(name: AdminRoutes.monitoring, arguments: AdminRoundArgs('1'))),
         ],
       ),
     ));
@@ -118,7 +118,7 @@ void main() {
     await tester.enterText(find.byType(TextField).last, 'Score typo');
     await tester.tap(find.text('Reopen Submission').last);
     await tester.pumpAndSettle();
-    expect(admin.getMonitoringJudges(1).first.submissionStatus, 'reopened');
+    expect(admin.getMonitoringJudges('1').first.submissionStatus, 'reopened');
     expect(tester.takeException(), isNull);
   });
 
@@ -164,7 +164,7 @@ void main() {
         theme: buildAppTheme(),
         onGenerateRoute: JudgeNav.onGenerateRoute,
         onGenerateInitialRoutes: (_) => [
-          JudgeNav.onGenerateRoute(const RouteSettings(name: AdminRoutes.roundContestants, arguments: AdminRoundArgs(2))),
+          JudgeNav.onGenerateRoute(const RouteSettings(name: AdminRoutes.roundContestants, arguments: AdminRoundArgs('2'))),
         ],
       ),
     ));
@@ -179,7 +179,7 @@ void main() {
     await tester.tap(find.text('Add Selected'));
     await tester.pumpAndSettle();
     expect(find.text('15 contestants added to Top 10.'), findsOneWidget);
-    expect(admin.getRoundContestants(2).length, 15);
+    expect(admin.getRoundContestants('2').length, 15);
     expect(tester.takeException(), isNull);
   });
 }

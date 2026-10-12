@@ -56,17 +56,17 @@ void main() {
     expect(login.actorType, ActorType.judge); // no actor_type → judge
 
     final round = (await api.rounds()).single;
-    expect((round.id, round.name, round.status.name, round.eventName), (41, 'Test Reopen Guard', 'closed', 'TESTING'));
+    expect((round.id, round.name, round.status.name, round.eventName), ('41', 'Test Reopen Guard', 'closed', 'TESTING')); // old numeric ids still read
 
-    final c = (await api.contestants(41)).single;
-    expect((c.id, c.number, c.name, c.subtitle), (35, 4, 'test', 'Mahasiswa'));
+    final c = (await api.contestants('41')).single;
+    expect((c.id, c.number, c.name, c.subtitle), ('35', 4, 'test', 'ST · Mahasiswa')); // nama_tambahan · profesi
     expect(c.photoUrl, startsWith('https://'));
 
-    final k = (await api.criteria(41)).single;
-    expect((k.id, k.min, k.max, k.weight, k.step, k.decimals), (38, 0.0, 100.0, 100.0, 1.0, 0));
+    final k = (await api.criteria('41')).single;
+    expect((k.id, k.min, k.max, k.weight, k.step, k.decimals), ('38', 0.0, 100.0, 100.0, 1.0, 0));
 
-    final row = (await api.scoreSheet(41)).single;
-    expect((row.contestantId, row.sheetStatus, row.scores[38]), (35, 'submitted', 80.0));
+    final row = (await api.scoreSheet('41')).single;
+    expect((row.contestantId, row.sheetStatus, row.scores['38']), ('35', 'submitted', 80.0));
     expect(requests.last.headers['Authorization'], 'Bearer tkn');
   });
 
@@ -83,11 +83,11 @@ void main() {
     await expectLater(api.rounds(), throwsA(isA<ApiException>().having((e) => e.isUnauthorized, '401', true)));
     expect(unauthorized, isTrue);
     await expectLater(
-      api.round(999),
+      api.round('999'),
       throwsA(isA<ApiException>().having((e) => e.message, 'message', 'Kamu tidak ditugaskan ke ronde ini.')),
     );
     try {
-      await api.saveScores(41, const []);
+      await api.saveScores('41', const []);
       fail('expected 422');
     } on ApiException catch (e) {
       expect(e.isValidation, isTrue);
@@ -144,7 +144,7 @@ void main() {
 
   test('judge criteria: nested children become a parent section with its sub-criteria', () async {
     final api = apiWith({'GET /v1/judge/rounds/144/criteria': (200, nestedCriteria)});
-    final sections = buildSections(await api.criteria(144));
+    final sections = buildSections(await api.criteria('144'));
     expect([for (final s in sections) '${s.heading}: ${s.criteria.map((c) => c.label).join(', ')}'], [
       'Penampilan: Penampilan',
       'parent: child 1 parent',
@@ -182,12 +182,56 @@ void main() {
         '{"id":206,"round_contestant_id":174,"avg_score":60,"accumulated_score":null,"rank_no":2,"contestant":{"id":174,"finalis":{"nama_finalis":"Finalis 1","nomor_urut":1,"profesi":"Profesi / Aktivitas 1"}}},'
         '{"id":207,"round_contestant_id":176,"avg_score":60,"accumulated_score":null,"rank_no":3,"contestant":{"id":176,"finalis":{"nama_finalis":"Finalis 3","nomor_urut":3,"profesi":"Profesi / Aktivitas 3"}}}]}}';
     final api = apiWith({'GET /v1/judge/rounds/145/results': (200, body)});
-    final result = await api.results(145);
+    final result = await api.results('145');
     expect([for (final i in result.items) '${i.rank} ${i.name} ${i.combinedScore} ${i.tied}'], [
       '1 Finalis 2 63.33 false',
       '2 Finalis 1 60.0 true',
       '3 Finalis 3 60.0 true',
     ]);
     expect(result.items.first.number, 2);
+  });
+
+  test('live ids are opaque strings (2026-10-09): round, contestant, criterion, score sheet', () async {
+    // Shapes and ids as returned by the live server on 2026-10-09.
+    final api = apiWith({
+      'GET /v1/judge/rounds/cfd10ba1a13a7ebf8cb5/contestants': (200,
+          '{"success":true,"data":[{"id":"aa16fb301eccbb45f0e3","round_id":"cfd10ba1a13a7ebf8cb5","id_finalis":"6ab4c4a93f304",'
+              '"finalis":{"id_finalis":"6ab4c4a93f304","nama_finalis":"Finalis 1","nomor_urut":1}}]}'),
+      'GET /v1/judge/rounds/cfd10ba1a13a7ebf8cb5/criteria': (200,
+          '{"success":true,"data":[{"id":"e2afd215a56ada2d7867","round_id":"cfd10ba1a13a7ebf8cb5","name":"Penampilan","weight":"100.00",'
+              '"min_points":1,"max_points":10,"is_scored":true,"parent_id":null,"children":[]}]}'),
+      'GET /v1/judge/rounds/cfd10ba1a13a7ebf8cb5/score-sheet': (200,
+          '{"success":true,"data":[{"round_contestant_id":"aa16fb301eccbb45f0e3","sheet_status":"draft",'
+              '"scores":[{"round_criteria_id":"e2afd215a56ada2d7867","raw_score":8}]}]}'),
+      'POST /v1/judge/rounds/cfd10ba1a13a7ebf8cb5/score-sheet': (200, '{"success":true,"data":[]}'),
+    });
+    const round = 'cfd10ba1a13a7ebf8cb5';
+    final c = (await api.contestants(round)).single;
+    final k = (await api.criteria(round)).single;
+    final row = (await api.scoreSheet(round)).single;
+    expect((c.id, c.number, k.id, row.contestantId), ('aa16fb301eccbb45f0e3', 1, 'e2afd215a56ada2d7867', 'aa16fb301eccbb45f0e3'));
+    expect(row.scores[k.id], 8.0);
+    await api.saveScores(round, [ScoreInput(contestantId: c.id, criterionId: k.id, rawScore: 9)]);
+    expect(jsonDecode(requests.last.body), {
+      'scores': [
+        {'round_contestant_id': 'aa16fb301eccbb45f0e3', 'round_criteria_id': 'e2afd215a56ada2d7867', 'raw_score': 9.0, 'comment': null},
+      ],
+    });
+  });
+
+  test('contestant details from the API: additional name, profession, age, description (no vote counts)', () {
+    // `finalis` as on the live server (round c2987e…, 2026-10-12).
+    final c = Contestant.fromJson({
+      'id': 'aa16fb301eccbb45f0e3',
+      'finalis': {
+        'id_finalis': '6ab22a8773909', 'nama_finalis': 'Finalis 1', 'nama_tambahan': 'Nama Tambahan 1', 'usia': 25,
+        'profesi': 'Profesi / Aktivitas 1', 'nomor_urut': 1, 'deskripsi': 'Test Deskripsi / Biografi 1', 'total_voters': 60,
+      },
+    });
+    expect(c.subtitle, 'Nama Tambahan 1 · Profesi / Aktivitas 1 · 25 yrs');
+    expect((c.additionalName, c.profession, c.age, c.description), ('Nama Tambahan 1', 'Profesi / Aktivitas 1', 25, 'Test Deskripsi / Biografi 1'));
+    // Only what exists; usia 0 / null is left out.
+    final bare = Contestant.fromJson({'id': 'x', 'finalis': {'nama_finalis': 'Finalis 11', 'nomor_urut': 11, 'usia': null}});
+    expect((bare.subtitle, bare.description), ('', null));
   });
 }

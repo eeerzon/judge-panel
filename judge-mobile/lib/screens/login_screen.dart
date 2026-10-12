@@ -11,6 +11,7 @@ import '../api/api_client.dart';
 import '../navigation/judge_nav.dart';
 import '../state/app_scope.dart';
 import '../theme/tokens.dart';
+import '../widgets/appearance_toggle.dart';
 import '../widgets/common.dart';
 
 /// TEMPORARY: "Demo access" list of test accounts on the KREEN staging
@@ -109,20 +110,24 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           );
 
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1180),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: padX, vertical: 56),
-                    child: content,
+          return Stack(children: [
+            SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1180),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: padX, vertical: 56),
+                      child: content,
+                    ),
                   ),
                 ),
               ),
             ),
-          );
+            // Night / light mode, top right.
+            const Positioned(top: 16, right: 16, child: AppearanceIconButton()),
+          ]);
         }),
       ),
     );
@@ -162,7 +167,7 @@ class _LoginScreenState extends State<LoginScreen> {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
-        boxShadow: const [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.18), blurRadius: 55, offset: Offset(0, 18))],
+        boxShadow: [BoxShadow(color: AppColors.cardShadow, blurRadius: 55, offset: const Offset(0, 18))],
       ),
       child: Form(
         key: _formKey,

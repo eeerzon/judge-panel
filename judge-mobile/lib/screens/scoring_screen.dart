@@ -18,8 +18,8 @@ import '../widgets/judge_chrome.dart';
 class ScoringScreen extends StatefulWidget {
   const ScoringScreen({super.key, required this.roundId, required this.contestantId, required this.origin});
 
-  final int roundId;
-  final int contestantId;
+  final String roundId;
+  final String contestantId;
   final ScoringOrigin origin;
 
   @override
@@ -39,8 +39,8 @@ class _ScoringScreenState extends State<ScoringScreen> {
   late final TextEditingController _noteController;
   final _noteFocus = FocusNode(debugLabel: 'note');
 
-  int get _roundId => widget.roundId;
-  int get _contestantId => widget.contestantId;
+  String get _roundId => widget.roundId;
+  String get _contestantId => widget.contestantId;
   bool get _readOnly => !_store.canJudgeRound(_roundId) || _store.isContestantLocked(_roundId, _contestantId);
   String get _backLabel => widget.origin == ScoringOrigin.review ? 'Review' : 'Contestants';
 
@@ -135,6 +135,11 @@ class _ScoringScreenState extends State<ScoringScreen> {
     if (c == null) return;
     final raw = rawValue.trim();
     if (raw.isEmpty) {
+      if (!_store.canClearScore(_roundId, _contestantId, c.id)) {
+        // Saved on the server: it can be changed, not emptied.
+        setState(() => _fieldErrors[key] = 'A saved score can’t be cleared. Enter a new value.');
+        return;
+      }
       setState(() => _editing = null);
       _setScore(key, null);
       return;
@@ -347,11 +352,11 @@ class _ScoringScreenState extends State<ScoringScreen> {
         ? SaveIndicator.locked
         : _store.saveIndicator(_roundId, _contestantId);
     final (String text, Color color) = switch (indicator) {
-      SaveIndicator.saved => ('Saved ✓', AppColors.statusScoredIcon),
+      SaveIndicator.saved => ('Saved ✓', AppColors.statusScoredOnPage),
       SaveIndicator.saving => ('Saving…', AppColors.textSecondary),
       SaveIndicator.savedOnDevice => ('Saved on device', AppColors.statusDraftColor),
       SaveIndicator.error => ('Unable to save', AppColors.statusErrorColor),
-      SaveIndicator.locked => ('Locked', AppColors.statusScoredIcon),
+      SaveIndicator.locked => ('Locked', AppColors.statusScoredOnPage),
     };
     final message = indicator == SaveIndicator.error ? _store.syncMessage : null;
     return Semantics(
@@ -748,8 +753,14 @@ class _IdentityPanel extends StatelessWidget {
                   style: ts(26, weight: FontWeight.w700, color: AppColors.accent, tabular: true)),
               const SizedBox(height: 2),
               Text(contestant.name, style: ts(18, weight: FontWeight.w600, height: 1.3)),
-              const SizedBox(height: 2),
-              Text(contestant.subtitle, style: ts(14, color: AppColors.textSecondary)),
+              if (contestant.subtitle.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(contestant.subtitle, style: ts(14, color: AppColors.textSecondary)),
+              ],
+              if (contestant.description != null) ...[
+                const SizedBox(height: 6),
+                _ContestantBio(contestant: contestant),
+              ],
             ],
           ),
           progress,
@@ -767,13 +778,68 @@ class _IdentityPanel extends StatelessWidget {
         Text(contestant.name,
             textAlign: TextAlign.center, style: ts(24, weight: FontWeight.w600, height: 1.3)),
         const SizedBox(height: 6),
-        Text(contestant.subtitle, textAlign: TextAlign.center, style: ts(16, color: AppColors.textSecondary)),
+        if (contestant.subtitle.isNotEmpty)
+          Text(contestant.subtitle, textAlign: TextAlign.center, style: ts(16, color: AppColors.textSecondary)),
         const SizedBox(height: 6 + 16),
         progress,
         const SizedBox(height: 6 + 20),
         totalBlock,
+        // Below the total, so the score never moves down for a long bio.
+        if (contestant.description != null) ...[
+          const SizedBox(height: 20),
+          _ContestantBio(contestant: contestant, center: true),
+        ],
       ],
     );
+  }
+}
+
+/// `finalis.deskripsi`: 3 lines in the panel; "Read more" shows it whole.
+class _ContestantBio extends StatelessWidget {
+  const _ContestantBio({required this.contestant, this.center = false});
+  final Contestant contestant;
+  final bool center;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = contestant.description!;
+    final style = ts(13, color: AppColors.textSecondary, height: 1.5);
+    return LayoutBuilder(builder: (context, constraints) {
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        maxLines: 3,
+        textDirection: Directionality.of(context),
+      )..layout(maxWidth: constraints.maxWidth.isFinite ? constraints.maxWidth : 320);
+      final long = painter.didExceedMaxLines;
+      return Column(
+        crossAxisAlignment: center ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          Text(text, maxLines: 3, overflow: TextOverflow.ellipsis, textAlign: center ? TextAlign.center : TextAlign.start, style: style),
+          if (long)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: AppColors.surfaceRaised,
+                  title: Text('${contestant.numberLabel} · ${contestant.name}', style: ts(17, weight: FontWeight.w700)),
+                  content: SingleChildScrollView(child: Text(text, style: ts(14, color: AppColors.textSecondary, height: 1.6))),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: Text('Close', style: ts(14, weight: FontWeight.w700, color: AppColors.accentBright)),
+                    ),
+                  ],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('Read more', style: ts(13, weight: FontWeight.w700, color: AppColors.accentBright)),
+              ),
+            ),
+        ],
+      );
+    });
   }
 }
 

@@ -29,12 +29,21 @@ import '../api/api_client.dart';
 import 'admin_models.dart';
 
 int _int(Object? v, [int fallback = 0]) => v is num ? v.toInt() : int.tryParse('$v') ?? fallback;
+
+/// A server id (round, judge, assignment, round contestant, criterion,
+/// score sheet): an opaque string since 2026-10-09, e.g. "bf853c108eed58075240".
+String _sid(Object? v) => v == null ? '' : '$v'.trim();
 double _dbl(Object? v, double fallback) => v is num ? v.toDouble() : double.tryParse('$v') ?? fallback;
+
+/// The pieces of a round's API data; a tab or an action reloads only those
+/// it uses ([AdminStore.loadRound] `only`).
+enum RoundPart { meta, contestants, judges, criteria, monitoring, results, advancement }
 
 class AdminStore extends ChangeNotifier {
   AdminStore._(this._prefs, [this._api]);
 
-  static const storageKey = 'kreenAdminConfiguration';
+  /// v2: server ids are strings since 2026-10-09 (v1 data used numbers).
+  static const storageKey = 'kreenAdminConfiguration.v2';
   static const schemaVersion = 5;
 
   final SharedPreferences? _prefs;
@@ -52,16 +61,16 @@ class AdminStore extends ChangeNotifier {
   late List<AdminRound> rounds;
   late List<ContestantMaster> _contestants;
   late List<JudgeMaster> _judges;
-  late Map<int, List<int>> _contestantAssignments;
-  late Map<int, List<JudgeAssignment>> _judgeAssignments;
-  late Map<int, List<AdminCriterion>> _criteriaByRound;
-  late Map<int, List<ReopenRecord>> _reopensByRound;
-  late Map<int, Map<int, ({String status, DateTime? submittedAt})>> _submissionOverrides;
+  late Map<String, List<int>> _contestantAssignments;
+  late Map<String, List<JudgeAssignment>> _judgeAssignments;
+  late Map<String, List<AdminCriterion>> _criteriaByRound;
+  late Map<String, List<ReopenRecord>> _reopensByRound;
+  late Map<String, Map<String, ({String status, DateTime? submittedAt})>> _submissionOverrides;
   late List<AuditEvent> _auditEvents;
-  late Map<int, RoundResult> _snapshots;
-  late Map<int, bool> _visibility;
-  late Map<int, bool> _tieAcknowledged;
-  late Map<int, Advancement> _advancementBySource;
+  late Map<String, RoundResult> _snapshots;
+  late Map<String, bool> _visibility;
+  late Map<String, bool> _tieAcknowledged;
+  late Map<String, Advancement> _advancementBySource;
   late List<Map<String, dynamic>> _advancementHistory;
   late EventSettings eventSettings;
 
@@ -177,7 +186,9 @@ class AdminStore extends ChangeNotifier {
         results[2] as List<Map<String, dynamic>>,
       );
       // Round data is small; load every round so Overview/Rounds are real.
-      await Future.wait([for (final r in [...rounds]) loadRound(r.id)]);
+      await Future.wait([
+        for (final r in [...rounds]) loadRound(r.id),
+      ]);
       return null;
     } on ApiException catch (e) {
       return e.message;
@@ -222,11 +233,13 @@ class AdminStore extends ChangeNotifier {
       return const AdminActionResult.fail('Round creation is not available yet in this prototype.');
     }
     try {
-      await api.createRound(current.id,
-          name: name.trim(),
-          promoteMode: promoteMode,
-          promoteTopN: promoteTopN,
-          favoritPromoteEnabled: favoritPromoteEnabled);
+      await api.createRound(
+        current.id,
+        name: name.trim(),
+        promoteMode: promoteMode,
+        promoteTopN: promoteTopN,
+        favoritPromoteEnabled: favoritPromoteEnabled,
+      );
     } on ApiException catch (e) {
       return AdminActionResult.fail(e.fieldErrors.values.expand((m) => m).firstOrNull ?? e.message);
     }
@@ -271,7 +284,10 @@ class AdminStore extends ChangeNotifier {
   /// API contestants replace their local copies; local ids stay stable per
   /// `id_finalis`. Contestants added on the device (no API yet) are kept.
   void _mergeContestants(List<Map<String, dynamic>> raw) {
-    final byExternal = {for (final c in _contestants) if (c.externalId != null) c.externalId!: c};
+    final byExternal = {
+      for (final c in _contestants)
+        if (c.externalId != null) c.externalId!: c,
+    };
     var nextId = nextContestantId();
     final merged = <ContestantMaster>[
       for (final j in raw)
@@ -289,50 +305,60 @@ class AdminStore extends ChangeNotifier {
   // ------------------------------------------------------ round data (API)
 
   /// Per round: local contestant id → `round_contestant` id.
-  final Map<int, Map<int, int>> _roundContestantIds = {};
+  final Map<String, Map<int, String>> _roundContestantIds = {};
 
   /// Per round: judge progress from `GET rounds/{id}/monitoring`.
-  final Map<int, Map<int, _JudgeProgress>> _progress = {};
+  final Map<String, Map<String, _JudgeProgress>> _progress = {};
 
   /// Closed rounds: provisional result from `GET rounds/{id}/results`.
-  final Map<int, RoundResult> _provisional = {};
+  final Map<String, RoundResult> _provisional = {};
 
   /// Finalized source rounds: `GET rounds/{id}/advancement`.
-  final Map<int, AdvancementInfo> _advancementInfo = {};
+  final Map<String, AdvancementInfo> _advancementInfo = {};
 
-  final Set<int> _loadedRounds = {};
-  final Set<int> loadingRounds = {};
-  final Map<int, String> roundErrors = {};
+  final Set<String> _loadedRounds = {};
+  final Set<String> loadingRounds = {};
+  final Map<String, String> roundErrors = {};
 
-  bool isRoundLoaded(int roundId) => !connected || _loadedRounds.contains(roundId);
-  AdvancementInfo? advancementInfo(int roundId) => _advancementInfo[roundId];
+  bool isRoundLoaded(String roundId) => !connected || _loadedRounds.contains(roundId);
+  AdvancementInfo? advancementInfo(String roundId) => _advancementInfo[roundId];
 
-  /// Loads everything the Admin API has for one round and replaces the local
-  /// copies. Returns an error message, or null.
-  Future<String?> loadRound(int roundId) async {
+  /// Loads one round from the Admin API. [only]: just those parts (a tab or
+  /// an action reloads what it shows / changed); everything the first time.
+  /// Returns an error message, or null.
+  Future<String?> loadRound(String roundId, {Set<RoundPart>? only}) async {
     final api = _api;
     if (api == null) return null;
+    final parts = only == null || !_loadedRounds.contains(roundId) || getRound(roundId) == null
+        ? RoundPart.values.toSet()
+        : only;
+    bool wants(RoundPart p) => parts.contains(p);
     loadingRounds.add(roundId);
     notifyListeners();
     try {
-      final round = await api.round(roundId);
+      // The status decides whether results / advancement exist.
+      final withMeta = wants(RoundPart.meta) || wants(RoundPart.results) || wants(RoundPart.advancement);
+      final round = withMeta ? await api.round(roundId) : getRound(roundId)!;
       final done = round.status == 'closed' || round.status == 'finalized';
-      final parts = await Future.wait<Object?>([
-        api.roundContestants(roundId),
-        api.roundJudges(roundId),
-        api.criteria(roundId),
-        api.monitoring(roundId),
-        done ? api.results(roundId) : Future<Object?>.value(),
-        round.status == 'finalized' ? api.advancement(roundId) : Future<Object?>.value(),
+      final fetched = await Future.wait<Object?>([
+        wants(RoundPart.contestants) ? api.roundContestants(roundId) : Future<Object?>.value(),
+        wants(RoundPart.judges) ? api.roundJudges(roundId) : Future<Object?>.value(),
+        wants(RoundPart.criteria) ? api.criteria(roundId) : Future<Object?>.value(),
+        wants(RoundPart.monitoring) ? api.monitoring(roundId) : Future<Object?>.value(),
+        wants(RoundPart.results) && done ? api.results(roundId) : Future<Object?>.value(),
+        wants(RoundPart.advancement) && round.status == 'finalized'
+            ? api.advancement(roundId)
+            : Future<Object?>.value(),
       ]);
       _applyRound(
         round,
-        contestants: parts[0] as List<Map<String, dynamic>>,
-        judges: parts[1] as List<Map<String, dynamic>>,
-        criteria: parts[2] as List<Map<String, dynamic>>,
-        monitoring: parts[3] as Map<String, dynamic>,
-        results: parts[4] as Map<String, dynamic>?,
-        advancement: parts[5] as Map<String, dynamic>?,
+        meta: withMeta,
+        contestants: fetched[0] as List<Map<String, dynamic>>?,
+        judges: fetched[1] as List<Map<String, dynamic>>?,
+        criteria: fetched[2] as List<Map<String, dynamic>>?,
+        monitoring: fetched[3] as Map<String, dynamic>?,
+        results: wants(RoundPart.results) ? (data: fetched[4] as Map<String, dynamic>?) : null,
+        advancement: fetched[5] as Map<String, dynamic>?,
       );
       roundErrors.remove(roundId);
       return null;
@@ -354,69 +380,128 @@ class AdminStore extends ChangeNotifier {
     return created;
   }
 
-  JudgeMaster _judgeFor(int id, Map<String, dynamic>? raw) {
+  JudgeMaster _judgeFor(String id, Map<String, dynamic>? raw) {
     final existing = getJudge(id);
-    if (existing != null || raw == null) return existing ?? JudgeMaster(id: id, displayNumber: '$id', name: 'Judge $id', email: '', phone: '');
     final next = _judges.fold<int>(0, (m, j) => math.max(m, int.tryParse(j.displayNumber) ?? 0)) + 1;
+    if (existing != null) return existing;
+    if (raw == null) {
+      // Not in the master list (ids are opaque hashes — never shown as names).
+      return JudgeMaster(
+        id: id,
+        displayNumber: next.toString().padLeft(2, '0'),
+        name: 'Unknown judge',
+        email: '',
+        phone: '',
+      );
+    }
     final created = JudgeMaster.fromApi(raw, displayNumber: next.toString().padLeft(2, '0'));
     _judges.add(created);
     return created;
   }
 
+  /// Applies the parts that were fetched; a null part keeps the cached data.
+  /// [results] is a record so "fetched, no result yet" (data null) differs
+  /// from "not fetched".
   void _applyRound(
     AdminRound round, {
-    required List<Map<String, dynamic>> contestants,
-    required List<Map<String, dynamic>> judges,
-    required List<Map<String, dynamic>> criteria,
-    required Map<String, dynamic> monitoring,
-    Map<String, dynamic>? results,
+    bool meta = true,
+    List<Map<String, dynamic>>? contestants,
+    List<Map<String, dynamic>>? judges,
+    List<Map<String, dynamic>>? criteria,
+    Map<String, dynamic>? monitoring,
+    ({Map<String, dynamic>? data})? results,
     Map<String, dynamic>? advancement,
   }) {
     final id = round.id;
-    final i = rounds.indexWhere((r) => r.id == id);
-    if (i < 0) {
-      rounds.add(round);
-    } else {
-      rounds[i] = round;
+    if (meta) {
+      final i = rounds.indexWhere((r) => r.id == id);
+      if (i < 0) {
+        rounds.add(round);
+      } else {
+        rounds[i] = round;
+      }
+      rounds.sort((a, b) => a.order.compareTo(b.order));
+      _visibility[id] = round.resultVisibility;
+      if (round.tieAcknowledgedAt != null) _tieAcknowledged[id] = true;
     }
-    rounds.sort((a, b) => a.order.compareTo(b.order));
-    _visibility[id] = round.resultVisibility;
-    if (round.tieAcknowledgedAt != null) _tieAcknowledged[id] = true;
 
     // Contestants.
-    final rc = <int, int>{};
-    for (final c in contestants) {
-      if ('${c['status'] ?? 'active'}' != 'active' || c['finalis'] is! Map) continue;
-      rc[_contestantFor(Map<String, dynamic>.from(c['finalis'] as Map)).id] = _int(c['id']);
+    if (contestants != null) {
+      final rc = <int, String>{};
+      for (final c in contestants) {
+        if ('${c['status'] ?? 'active'}' != 'active' || c['finalis'] is! Map) continue;
+        rc[_contestantFor(Map<String, dynamic>.from(c['finalis'] as Map)).id] = _sid(c['id']);
+      }
+      _roundContestantIds[id] = rc;
+      _contestantAssignments[id] = rc.keys.toList();
     }
-    _roundContestantIds[id] = rc;
-    _contestantAssignments[id] = rc.keys.toList();
 
     // Judge assignments.
-    _judgeAssignments[id] = [
-      for (final a in judges)
-        // flag_aktif comes as bool here but as 1/0 on /judges: both mean the same.
-        if (a['flag_aktif'] != false && '${a['flag_aktif']}' != '0')
-          JudgeAssignment(
-            judgeId: _judgeFor(_int(a['judge_id']), a['judge'] is Map ? Map<String, dynamic>.from(a['judge'] as Map) : null).id,
-            roundId: id,
-            required: a['required'] != false,
-            status: switch ('${a['assignment_status'] ?? 'assigned'}') {
-              'excused' => 'excused',
-              'removed' => 'removed',
-              'unassigned' => 'unassigned',
-              _ => 'assigned',
-            },
-            excuseReason: a['excuse_reason'] as String?,
-            excusedAt: DateTime.tryParse('${a['status_changed_at']}'),
-          ),
-    ];
+    if (judges != null) {
+      _judgeAssignments[id] = [
+        for (final a in judges)
+          // flag_aktif comes as bool here but as 1/0 on /judges: both mean the same.
+          if (a['flag_aktif'] != false && '${a['flag_aktif']}' != '0')
+            JudgeAssignment(
+              judgeId: _judgeFor(
+                _sid(a['judge_id']),
+                a['judge'] is Map ? Map<String, dynamic>.from(a['judge'] as Map) : null,
+              ).id,
+              roundId: id,
+              required: a['required'] != false,
+              status: switch ('${a['assignment_status'] ?? 'assigned'}') {
+                'excused' => 'excused',
+                'removed' => 'removed',
+                'unassigned' => 'unassigned',
+                _ => 'assigned',
+              },
+              excuseReason: a['excuse_reason'] as String?,
+              excusedAt: DateTime.tryParse('${a['status_changed_at']}'),
+            ),
+      ];
+    }
 
     _keepExcused(id);
 
     // Criteria (inactive ones are hidden).
+    if (criteria != null) _applyCriteria(id, criteria);
+
+    // Monitoring.
+    if (monitoring != null) {
+      _progress[id] = {
+        for (final j in (monitoring['judges'] as List? ?? const []))
+          if (j is Map) _sid(j['judge_id']): _JudgeProgress.fromApi(Map<String, dynamic>.from(j)),
+      };
+      _submissionOverrides.remove(id);
+    }
+
+    // Results: provisional (closed) or the official snapshot (finalized).
+    if (results != null) {
+      _provisional.remove(id);
+      final data = results.data;
+      if (data != null) {
+        final result = _resultFromApi(round, data);
+        if (round.status == 'finalized') {
+          _snapshots[id] = result;
+        } else {
+          _provisional[id] = result;
+        }
+      } else if (round.status != 'finalized') {
+        _snapshots.remove(id);
+      }
+    }
+
+    // Advancement from this (finalized) round.
+    if (advancement != null) _applyAdvancement(round, advancement);
+    _loadedRounds.add(id);
+  }
+
+  void _applyCriteria(String id, List<Map<String, dynamic>> criteria) {
     final active = criteria.where((c) => c['flag_aktif'] != false).toList();
-    final parentIds = {for (final c in active) if (c['parent_id'] != null) '${c['parent_id']}'};
+    final parentIds = {
+      for (final c in active)
+        if (c['parent_id'] != null) '${c['parent_id']}',
+    };
     _criteriaByRound[id] = [
       for (final (n, c) in active.indexed)
         () {
@@ -424,7 +509,8 @@ class AdminStore extends ChangeNotifier {
           // A parent group has children — or, before its first child is
           // added, is saved as a top-level non-scored 0% criterion (as the
           // editor sends it), so it can be picked as a Parent right away.
-          final isParent = parentIds.contains('${c['id']}') ||
+          final isParent =
+              parentIds.contains('${c['id']}') ||
               (c['is_scored'] == false && c['parent_id'] == null && _dbl(c['weight'], 0) == 0);
           return AdminCriterion(
             id: '${c['id']}',
@@ -442,82 +528,65 @@ class AdminStore extends ChangeNotifier {
           );
         }(),
     ];
-
-    // Monitoring.
-    _progress[id] = {
-      for (final j in (monitoring['judges'] as List? ?? const []))
-        if (j is Map) _int(j['judge_id']): _JudgeProgress.fromApi(Map<String, dynamic>.from(j)),
-    };
-    _submissionOverrides.remove(id);
-
-    // Results: provisional (closed) or the official snapshot (finalized).
-    _provisional.remove(id);
-    if (results != null) {
-      final result = _resultFromApi(round, results);
-      if (round.status == 'finalized') {
-        _snapshots[id] = result;
-      } else {
-        _provisional[id] = result;
-      }
-    } else if (round.status != 'finalized') {
-      _snapshots.remove(id);
-    }
-
-    // Advancement from this (finalized) round.
-    if (advancement != null) {
-      final info = AdvancementInfo.fromApi(
-        advancement,
-        contestantOf: (rcId) => _contestantForRc(id, rcId),
-        contestantOfFinalis: (ext) => _contestants.where((c) => c.externalId == ext).firstOrNull?.id,
-      );
-      _advancementInfo[id] = info;
-      if (info.currentIds.isNotEmpty && info.targetRoundId != null) {
-        final last = info.lastConfirmed;
-        _advancementBySource[id] = Advancement(
-          sourceRoundId: id,
-          targetRoundId: info.targetRoundId!,
-          selectedContestantIds: info.currentIds,
-          snapshotId: '$id',
-          method: last?.method == 'manual' ? 'manual' : 'top_n',
-          reason: last?.reason ?? '',
-          confirmedBy: last?.actor ?? '—',
-          confirmedAt: last?.at ?? round.finalizedAt ?? DateTime.now(),
-        );
-      } else {
-        _advancementBySource.remove(id);
-      }
-    }
-    _loadedRounds.add(id);
   }
 
-  int? _contestantForRc(int roundId, int rcId) =>
+  void _applyAdvancement(AdminRound round, Map<String, dynamic> advancement) {
+    final id = round.id;
+    final info = AdvancementInfo.fromApi(
+      advancement,
+      contestantOf: (rcId) => _contestantForRc(id, rcId),
+      contestantOfFinalis: (ext) => _contestants.where((c) => c.externalId == ext).firstOrNull?.id,
+    );
+    _advancementInfo[id] = info;
+    if (info.currentIds.isNotEmpty && info.targetRoundId != null) {
+      final last = info.lastConfirmed;
+      _advancementBySource[id] = Advancement(
+        sourceRoundId: id,
+        targetRoundId: info.targetRoundId!,
+        selectedContestantIds: info.currentIds,
+        snapshotId: id,
+        method: last?.method == 'manual' ? 'manual' : 'top_n',
+        reason: last?.reason ?? '',
+        confirmedBy: last?.actor ?? '—',
+        confirmedAt: last?.at ?? round.finalizedAt ?? DateTime.now(),
+      );
+    } else {
+      _advancementBySource.remove(id);
+    }
+  }
+
+  int? _contestantForRc(String roundId, String rcId) =>
       _roundContestantIds[roundId]?.entries.where((e) => e.value == rcId).firstOrNull?.key;
 
   RoundResult _resultFromApi(AdminRound round, Map<String, dynamic> json) {
     final eligible = [
-      for (final e in (_progress[round.id] ?? const <int, _JudgeProgress>{}).entries)
+      for (final e in (_progress[round.id] ?? const <String, _JudgeProgress>{}).entries)
         if (e.value.done) e.key,
     ];
     final items = <ResultItem>[];
     for (final raw in (json['items'] as List? ?? const [])) {
       if (raw is! Map) continue;
       final item = Map<String, dynamic>.from(raw);
-      final contestant = item['contestant'] is Map ? Map<String, dynamic>.from(item['contestant'] as Map) : const <String, dynamic>{};
+      final contestant = item['contestant'] is Map
+          ? Map<String, dynamic>.from(item['contestant'] as Map)
+          : const <String, dynamic>{};
       final master = contestant['finalis'] is Map
           ? _contestantFor(Map<String, dynamic>.from(contestant['finalis'] as Map))
-          : getContestant(_contestantForRc(round.id, _int(item['round_contestant_id'])) ?? -1);
+          : getContestant(_contestantForRc(round.id, _sid(item['round_contestant_id'])) ?? -1);
       if (master == null) continue;
-      items.add(ResultItem(
-        contestantId: master.id,
-        number: master.number,
-        name: master.name,
-        profesi: master.profesi,
-        photo: master.photo,
-        combinedScore: _dbl(item['avg_score'], 0),
-        eligibleJudgeCount: eligible.length,
-        judgeScores: [],
-        rank: _int(item['rank_no']),
-      ));
+      items.add(
+        ResultItem(
+          contestantId: master.id,
+          number: master.number,
+          name: master.name,
+          profesi: master.details,
+          photo: master.photo,
+          combinedScore: _dbl(item['avg_score'], 0),
+          eligibleJudgeCount: eligible.length,
+          judgeScores: [],
+          rank: _int(item['rank_no']),
+        ),
+      );
     }
     items.sort((a, b) => a.rank != b.rank ? a.rank.compareTo(b.rank) : a.number.compareTo(b.number));
     for (final item in items) {
@@ -535,7 +604,7 @@ class AdminStore extends ChangeNotifier {
   }
 
   /// Fills a result row's per-judge scores from `GET rounds/{id}/results/{rc}`.
-  Future<String?> loadResultDetail(int roundId, int contestantId) async {
+  Future<String?> loadResultDetail(String roundId, int contestantId) async {
     final api = _api;
     final rc = _roundContestantIds[roundId]?[contestantId];
     if (api == null || rc == null) return null;
@@ -551,14 +620,21 @@ class AdminStore extends ChangeNotifier {
             if (raw is Map)
               () {
                 final j = Map<String, dynamic>.from(raw);
-                final judge = _judgeFor(_int(j['judge_id']), j['judge'] is Map ? Map<String, dynamic>.from(j['judge'] as Map) : null);
-                final scores = [for (final s in (j['scores'] as List? ?? const [])) if (s is Map) s];
+                final judge = _judgeFor(
+                  _sid(j['judge_id']),
+                  j['judge'] is Map ? Map<String, dynamic>.from(j['judge'] as Map) : null,
+                );
+                final scores = [
+                  for (final s in (j['scores'] as List? ?? const []))
+                    if (s is Map) s,
+                ];
                 final submitted = ['submitted', 'resubmitted', 'locked'].contains(j['status']);
                 return JudgeScoreEntry(
                   judgeId: judge.id,
                   judgeNumber: judge.label,
                   judgeName: judge.name,
                   total: scores.isEmpty ? null : scores.fold<double>(0, (t, s) => t + _dbl(s['total_score'], 0)),
+                  rawTotal: scores.isEmpty ? null : scores.fold<double>(0, (t, s) => t + _dbl(s['raw_score'], 0)),
                   included: submitted,
                   exclusion: submitted ? '' : 'Not Submitted — Not Counted',
                   criteriaScores: {
@@ -568,6 +644,7 @@ class AdminStore extends ChangeNotifier {
                 );
               }(),
         ]);
+      item.rawScore = _rawAverage(item.judgeScores);
       notifyListeners();
       return null;
     } on ApiException catch (e) {
@@ -575,10 +652,57 @@ class AdminStore extends ChangeNotifier {
     }
   }
 
+  /// Average raw total of the counted (submitted) judges; null without any.
+  static double? _rawAverage(List<JudgeScoreEntry> scores) {
+    final counted = [
+      for (final s in scores)
+        if (s.included && s.rawTotal != null) s.rawTotal!,
+    ];
+    return counted.isEmpty ? null : counted.reduce((a, b) => a + b) / counted.length;
+  }
+
+  // ------------------------------------------------------- results display
+
+  /// Results tab toggle: true (default) = percent (0–100, server avg_score);
+  /// false = raw points (average of the judges' raw totals).
+  bool resultsAsPercent = true;
+
+  void setResultsAsPercent(bool value) {
+    if (resultsAsPercent == value) return;
+    resultsAsPercent = value;
+    notifyListeners();
+  }
+
+  /// Highest raw total: Σ Max of the scored criteria (e.g. 400+300+300).
+  double rawMaxScore(String roundId) => scoredCriteria(roundId).fold(0, (s, c) => s + c.maxScore);
+
+  final Set<String> _rawLoading = {};
+  bool isLoadingRawScores(String roundId) => _rawLoading.contains(roundId);
+
+  /// Raw scores need every contestant's per-judge detail
+  /// (`GET results/{rc}`): loaded once, when the toggle is turned off.
+  Future<String?> loadRawScores(String roundId) async {
+    final result = _snapshots[roundId] ?? _provisional[roundId];
+    if (!connected || result == null || _rawLoading.contains(roundId)) return null;
+    final missing = [
+      for (final i in result.items)
+        if (i.rawScore == null) i.contestantId,
+    ];
+    if (missing.isEmpty) return null;
+    _rawLoading.add(roundId);
+    notifyListeners();
+    try {
+      final errors = await Future.wait([for (final id in missing) loadResultDetail(roundId, id)]);
+      return errors.whereType<String>().firstOrNull;
+    } finally {
+      _rawLoading.remove(roundId);
+      notifyListeners();
+    }
+  }
+
   /// A judge's scores for one contestant, once [loadResultDetail] ran.
-  JudgeScoreEntry? judgeScoreEntry(int roundId, int judgeId, int contestantId) =>
-      (_snapshots[roundId] ?? _provisional[roundId])
-          ?.items
+  JudgeScoreEntry? judgeScoreEntry(String roundId, String judgeId, int contestantId) =>
+      (_snapshots[roundId] ?? _provisional[roundId])?.items
           .where((i) => i.contestantId == contestantId)
           .firstOrNull
           ?.judgeScores
@@ -589,93 +713,130 @@ class AdminStore extends ChangeNotifier {
 
   /// Runs an Admin API command, then reloads the round (and the event's round
   /// list when [event] is set). Returns an error message, or null.
-  Future<String?> _remote(Future<void> Function(AdminApi api) command, {int? roundId, bool reloadEvent = false}) async {
+  /// Runs [command], then reloads only what it changed: the [parts] of
+  /// [roundId] (and of the rounds in [also]), or the whole event.
+  Future<String?> _remote(
+    Future<void> Function(AdminApi api) command, {
+    String? roundId,
+    Set<RoundPart>? parts,
+    Map<String, Set<RoundPart>> also = const {},
+    bool reloadEvent = false,
+  }) async {
     try {
       await command(_api!);
     } on ApiException catch (e) {
       return e.fieldErrors.values.expand((m) => m).firstOrNull ?? e.message;
     }
-    if (reloadEvent) {
-      final error = await refreshEvent();
-      if (error != null) return error;
-    } else if (roundId != null) {
-      final error = await loadRound(roundId);
-      if (error != null) return error;
-    }
-    return null;
+    if (reloadEvent) return refreshEvent();
+    final reload = {?roundId: parts, ...also};
+    final errors = await Future.wait([for (final e in reload.entries) loadRound(e.key, only: e.value)]);
+    return errors.whereType<String>().firstOrNull;
   }
+
+  // What each action changes (and so reloads).
+  static const _statusParts = {RoundPart.meta, RoundPart.monitoring, RoundPart.results, RoundPart.advancement};
+  static const _judgeParts = {RoundPart.judges, RoundPart.monitoring};
 
   static const _notConnected = 'This action is not connected to the Admin API yet.';
 
-  Future<String?> openRoundAction(int id) async =>
-      connected ? _remote((a) => a.openRound(id), roundId: id) : (openRound(id) ? null : 'The round is not ready to open.');
+  Future<String?> openRoundAction(String id) async => connected
+      ? _remote((a) => a.openRound(id), roundId: id, parts: _statusParts)
+      : (openRound(id) ? null : 'The round is not ready to open.');
 
-  Future<String?> closeRoundAction(int id) async => connected
-      ? _remote((a) => a.closeRound(id), roundId: id)
+  Future<String?> closeRoundAction(String id) async => connected
+      ? _remote((a) => a.closeRound(id), roundId: id, parts: _statusParts)
       : (closeRound(id) ? null : 'This action is not available now. Refresh and check round readiness.');
 
-  Future<String?> finalizeAction(int id) async => connected
-      ? _remote((a) => a.finalizeRound(id), reloadEvent: true)
+  Future<String?> finalizeAction(String id) async => connected
+      ? _remote((a) => a.finalizeRound(id), roundId: id, parts: _statusParts)
       : (finalizeResults(id) ? null : 'Results cannot be finalized yet. Check ties and required submissions.');
 
-  Future<String?> setResultVisibilityAction(int id, bool visible) async => connected
-      ? _remote((a) => a.setResultVisibility(id, visible), roundId: id)
+  Future<String?> setResultVisibilityAction(String id, bool visible) async => connected
+      ? _remote((a) => a.setResultVisibility(id, visible), roundId: id, parts: const {RoundPart.meta})
       : (setResultVisibility(id, visible) ? null : 'Visibility can change only after finalization.');
 
-  Future<String?> updateRoundAction(int id,
-          {required String name, required String promoteMode, required int promoteTopN, required bool favoritPromoteEnabled}) async =>
-      connected
-          ? _remote(
-              (a) => a.updateRound(id,
-                  name: name, promoteMode: promoteMode, promoteTopN: promoteTopN, favoritPromoteEnabled: favoritPromoteEnabled),
-              reloadEvent: true)
-          : _notConnected;
+  Future<String?> updateRoundAction(
+    String id, {
+    required String name,
+    required String promoteMode,
+    required int promoteTopN,
+    required bool favoritPromoteEnabled,
+  }) async => connected
+      ? _remote(
+          (a) => a.updateRound(
+            id,
+            name: name,
+            promoteMode: promoteMode,
+            promoteTopN: promoteTopN,
+            favoritPromoteEnabled: favoritPromoteEnabled,
+          ),
+          reloadEvent: true,
+        )
+      : _notConnected;
 
   /// Only the API call: the caller leaves the round's pages, then reloads
   /// the event ([refreshEvent]) so no open page loses its round.
-  Future<String?> deleteRoundAction(int id) async => connected ? _remote((a) => a.deleteRound(id)) : _notConnected;
+  Future<String?> deleteRoundAction(String id) async => connected ? _remote((a) => a.deleteRound(id)) : _notConnected;
 
   /// Round contestant roster: adds/removes the difference.
-  Future<String?> setRoundContestantsAction(int roundId, List<int> ids) async {
-    if (!connected) return setRoundContestantAssignments(roundId, ids) ? null : 'Contestants can change only while the round is Draft.';
-    final current = _roundContestantIds[roundId] ?? const <int, int>{};
-    return _remote((a) async {
-      for (final id in ids.where((id) => !current.containsKey(id))) {
-        final ext = getContestant(id)?.externalId;
-        if (ext != null) await a.addRoundContestant(roundId, ext);
-      }
-      for (final e in current.entries.where((e) => !ids.contains(e.key))) {
-        await a.removeRoundContestant(roundId, e.value);
-      }
-    }, roundId: roundId);
+  Future<String?> setRoundContestantsAction(String roundId, List<int> ids) async {
+    if (!connected) {
+      return setRoundContestantAssignments(roundId, ids)
+          ? null
+          : 'Contestants can change only while the round is Draft.';
+    }
+    final current = _roundContestantIds[roundId] ?? const <int, String>{};
+    return _remote(
+      (a) async {
+        for (final id in ids.where((id) => !current.containsKey(id))) {
+          final ext = getContestant(id)?.externalId;
+          if (ext != null) await a.addRoundContestant(roundId, ext);
+        }
+        for (final e in current.entries.where((e) => !ids.contains(e.key))) {
+          await a.removeRoundContestant(roundId, e.value);
+        }
+      },
+      roundId: roundId,
+      parts: const {RoundPart.contestants},
+    );
   }
 
-  Future<String?> setJudgeAssignmentAction(int roundId, int judgeId, bool enabled) async {
+  Future<String?> setJudgeAssignmentAction(String roundId, String judgeId, bool enabled) async {
     if (!connected) {
       setJudgeAssignment(roundId, judgeId, enabled);
       return null;
     }
     return _remote(
-        (a) => enabled
-            ? a.addRoundJudge(roundId, judgeId, required: eventSettings.defaultJudgeAssignmentRequired)
-            : a.removeRoundJudge(roundId, judgeId),
-        roundId: roundId);
+      (a) => enabled
+          ? a.addRoundJudge(roundId, judgeId, required: eventSettings.defaultJudgeAssignmentRequired)
+          : a.removeRoundJudge(roundId, judgeId),
+      roundId: roundId,
+      parts: _judgeParts,
+    );
   }
 
   /// Unchecking Required = `required: false` on the assignment
   /// (`PATCH judges/{judgeId}`). The reloaded assignment is checked: a server
   /// that ignores `required` gets reported, never silently kept.
-  Future<String?> setJudgeRequiredAction(int roundId, int judgeId, bool required) async {
+  Future<String?> setJudgeRequiredAction(String roundId, String judgeId, bool required) async {
     if (!connected) {
       setJudgeRequired(roundId, judgeId, required);
       return null;
     }
     if (getRound(roundId)?.status != 'draft') return 'Required can change only while the round is Draft.';
-    final error = await _remote((a) => a.updateRoundJudge(roundId, judgeId, required: required), roundId: roundId);
+    final error = await _remote(
+      (a) => a.updateRoundJudge(roundId, judgeId, required: required),
+      roundId: roundId,
+      parts: _judgeParts,
+    );
     if (error != null) return error;
-    final saved = (_judgeAssignments[roundId] ?? const <JudgeAssignment>[]).where((a) => a.judgeId == judgeId).firstOrNull;
+    final saved = (_judgeAssignments[roundId] ?? const <JudgeAssignment>[])
+        .where((a) => a.judgeId == judgeId)
+        .firstOrNull;
     if (saved == null) return 'The judge is no longer assigned to this round.';
-    if (saved.required != required) return 'The server did not save ${required ? 'Required' : 'Optional'} for this judge yet.';
+    if (saved.required != required) {
+      return 'The server did not save ${required ? 'Required' : 'Optional'} for this judge yet.';
+    }
     return null;
   }
 
@@ -683,99 +844,124 @@ class AdminStore extends ChangeNotifier {
   /// sent only when it differs from [unchangedStep] (the value the admin
   /// started from), so an untouched form default never changes a scale
   /// (no step on the server = 0.25 up to 10 points, else 1).
-  static Map<String, dynamic> _criterionBody(AdminCriterion c, {int? parentId, double? unchangedStep, bool update = false}) => {
-        'name': c.name,
-        'description': c.description,
-        'min_points': c.minScore,
-        'max_points': c.maxScore,
-        'weight': c.isParent ? 0 : c.weight,
-        'is_scored': c.isScored && !c.isParent,
-        // Numeric only ("step: numeric, minimal 0" — no null).
-        if (c.step != unchangedStep) 'step': c.step,
-        'parent_id': c.isParent ? null : parentId,
-        if (update) 'flag_aktif': true,
-      };
+  static Map<String, dynamic> _criterionBody(
+    AdminCriterion c, {
+    String? parentId,
+    double? unchangedStep,
+    bool update = false,
+  }) => {
+    'name': c.name,
+    'description': c.description,
+    'min_points': c.minScore,
+    'max_points': c.maxScore,
+    'weight': c.isParent ? 0 : c.weight,
+    'is_scored': c.isScored && !c.isParent,
+    // Numeric only ("step: numeric, minimal 0" — no null).
+    if (c.step != unchangedStep) 'step': c.step,
+    'parent_id': c.isParent ? null : parentId,
+    if (update) 'flag_aktif': true,
+  };
 
   /// Creates [list] in [roundId], parents first, so children can point at
   /// their parent's new server id. [remoteIds] maps local → server ids and
   /// is filled with the created ones.
-  static Future<void> _createCriteria(AdminApi a, int roundId, Iterable<AdminCriterion> list, Map<String, int> remoteIds,
-      {double? unchangedStep}) async {
+  static Future<void> _createCriteria(
+    AdminApi a,
+    String roundId,
+    Iterable<AdminCriterion> list,
+    Map<String, String> remoteIds, {
+    double? unchangedStep,
+  }) async {
     for (final c in [...list.where((c) => c.isParent), ...list.where((c) => !c.isParent)]) {
-      final created =
-          await a.createCriterion(roundId, _criterionBody(c, parentId: remoteIds[c.parentId], unchangedStep: unchangedStep));
+      final created = await a.createCriterion(
+        roundId,
+        _criterionBody(c, parentId: remoteIds[c.parentId], unchangedStep: unchangedStep),
+      );
       if (created != null) remoteIds[c.id] = created;
     }
   }
 
   /// Criteria editor save: the whole list, as in the prototype; with the API
   /// the difference is sent as create / update / delete.
-  Future<String?> saveCriteriaAction(int roundId, List<AdminCriterion> list) async {
+  Future<String?> saveCriteriaAction(String roundId, List<AdminCriterion> list) async {
     if (!connected) return setCriteria(roundId, list) ? null : 'Criteria can change only while the round is Draft.';
+    // Server ids are opaque: a criterion is on the server when the last
+    // load of the round had it (no placeholder data before that load).
+    if (!_loadedRounds.contains(roundId)) return 'The round is still loading. Try again in a moment.';
     final before = {for (final c in _criteriaByRound[roundId] ?? const <AdminCriterion>[]) c.id: c};
-    return _remote((a) async {
-      final remoteIds = {for (final id in before.keys) if (int.tryParse(id) != null) id: int.parse(id)};
-      bool isNew(AdminCriterion c) => before[c.id] == null || int.tryParse(c.id) == null;
-      await _createCriteria(a, roundId, list.where(isNew), remoteIds, unchangedStep: eventSettings.step);
-      // Sub-criteria first: a parent that still has children is forced to
-      // non-scored 0% by the server, so detach/attach them before it changes.
-      // (ordered by what each one was on the server before this save).
-      bool wasParent(AdminCriterion c) => before[c.id]!.isParent;
-      for (final c in [
-        ...list.where((c) => !isNew(c) && !wasParent(c)),
-        ...list.where((c) => !isNew(c) && wasParent(c)),
-      ]) {
-        final old = before[c.id]!;
-        if (jsonEncode(old.toJson()) != jsonEncode(c.toJson())) {
-          await a.updateCriterion(
-              roundId, remoteIds[c.id]!, _criterionBody(c, parentId: remoteIds[c.parentId], unchangedStep: old.step, update: true));
+    return _remote(
+      (a) async {
+        final remoteIds = {for (final id in before.keys) id: id};
+        bool isNew(AdminCriterion c) => !before.containsKey(c.id);
+        await _createCriteria(a, roundId, list.where(isNew), remoteIds, unchangedStep: eventSettings.step);
+        // Sub-criteria first: a parent that still has children is forced to
+        // non-scored 0% by the server, so detach/attach them before it changes.
+        // (ordered by what each one was on the server before this save).
+        bool wasParent(AdminCriterion c) => before[c.id]!.isParent;
+        for (final c in [
+          ...list.where((c) => !isNew(c) && !wasParent(c)),
+          ...list.where((c) => !isNew(c) && wasParent(c)),
+        ]) {
+          final old = before[c.id]!;
+          if (jsonEncode(old.toJson()) != jsonEncode(c.toJson())) {
+            await a.updateCriterion(
+              roundId,
+              remoteIds[c.id]!,
+              _criterionBody(c, parentId: remoteIds[c.parentId], unchangedStep: old.step, update: true),
+            );
+          }
         }
-      }
-      // Children before parents, so no parent is deleted while still in use.
-      final removed = before.values.where((c) => !list.any((n) => n.id == c.id)).toList()
-        ..sort((x, y) => (x.isParent ? 1 : 0).compareTo(y.isParent ? 1 : 0));
-      for (final c in removed) {
-        final remoteId = int.tryParse(c.id);
-        if (remoteId != null) await a.deleteCriterion(roundId, remoteId);
-      }
-    }, roundId: roundId);
+        // Children before parents, so no parent is deleted while still in use.
+        final removed = before.values.where((c) => !list.any((n) => n.id == c.id)).toList()
+          ..sort((x, y) => (x.isParent ? 1 : 0).compareTo(y.isParent ? 1 : 0));
+        for (final c in removed) {
+          await a.deleteCriterion(roundId, c.id);
+        }
+      },
+      roundId: roundId,
+      parts: const {RoundPart.criteria},
+    );
   }
 
-  Future<String?> deleteCriterionAction(int roundId, String criterionId) async {
+  Future<String?> deleteCriterionAction(String roundId, String criterionId) async {
     if (!connected) {
       return setCriteria(roundId, getCriteria(roundId)..removeWhere((c) => c.id == criterionId))
           ? null
           : 'Criteria can change only while the round is Draft.';
     }
-    final remoteId = int.tryParse(criterionId);
-    if (remoteId == null) return _notConnected;
-    return _remote((a) => a.deleteCriterion(roundId, remoteId), roundId: roundId);
+    final onServer = _loadedRounds.contains(roundId) && getCriteria(roundId).any((c) => c.id == criterionId);
+    if (!onServer) return 'This criterion is not on the server. Reload the round and try again.';
+    return _remote((a) => a.deleteCriterion(roundId, criterionId), roundId: roundId, parts: const {RoundPart.criteria});
   }
 
   /// Reopen = every submitted sheet of the judge in this round.
-  Future<String?> reopenAction(int roundId, int judgeId, String reason) async {
+  Future<String?> reopenAction(String roundId, String judgeId, String reason) async {
     if (!connected) {
       final r = reopen(roundId, judgeId, reason);
       return r.ok ? null : r.message;
     }
     if (reason.trim().isEmpty) return 'A reason is required.';
-    final sheets = _progress[roundId]?[judgeId]?.submittedSheetIds ?? const <int>[];
+    final sheets = _progress[roundId]?[judgeId]?.submittedSheetIds ?? const <String>[];
     if (sheets.isEmpty) return 'This judge has no submitted score sheets to reopen.';
-    return _remote((a) async {
-      for (final sheet in sheets) {
-        await a.reopenScoreSheet(roundId, sheet, reason.trim());
-      }
-    }, roundId: roundId);
+    return _remote(
+      (a) async {
+        for (final sheet in sheets) {
+          await a.reopenScoreSheet(roundId, sheet, reason.trim());
+        }
+      },
+      roundId: roundId,
+      parts: const {RoundPart.monitoring},
+    );
   }
 
   /// Judges excused from this device. `GET rounds/{id}/judges` leaves
   /// excused judges out, so they are kept here to stay visible (Monitoring)
   /// and restorable until the server lists them again.
-  final Map<int, Map<int, JudgeAssignment>> _excusedKept = {};
+  final Map<String, Map<String, JudgeAssignment>> _excusedKept = {};
 
   /// excuse / restore = `PATCH judges/{judgeId}` assignment_status
   /// (excused + excuse_reason / assigned); remove = unassign (DELETE).
-  Future<String?> judgeGovernanceAction(int roundId, int judgeId, String action, String reason) async {
+  Future<String?> judgeGovernanceAction(String roundId, String judgeId, String action, String reason) async {
     if (!connected) {
       final r = updateJudgeAssignment(roundId, judgeId, action, reason);
       return r.ok ? null : r.message;
@@ -784,9 +970,14 @@ class AdminStore extends ChangeNotifier {
     switch (action) {
       case 'excuse':
         if (why.isEmpty) return 'A reason is required.';
-        final before = (_judgeAssignments[roundId] ?? const <JudgeAssignment>[]).where((a) => a.judgeId == judgeId).firstOrNull;
+        final before = (_judgeAssignments[roundId] ?? const <JudgeAssignment>[])
+            .where((a) => a.judgeId == judgeId)
+            .firstOrNull;
         final error = await _remote(
-            (a) => a.updateRoundJudge(roundId, judgeId, status: 'excused', excuseReason: why), roundId: roundId);
+          (a) => a.updateRoundJudge(roundId, judgeId, status: 'excused', excuseReason: why),
+          roundId: roundId,
+          parts: _judgeParts,
+        );
         if (error != null) return error;
         _excusedKept.putIfAbsent(roundId, () => {})[judgeId] = JudgeAssignment(
           judgeId: judgeId,
@@ -800,21 +991,21 @@ class AdminStore extends ChangeNotifier {
         _save();
         return null;
       case 'restore':
-        final error = await _remote((a) => a.updateRoundJudge(roundId, judgeId, status: 'assigned'), roundId: roundId);
-        if (error == null) {
-          _excusedKept[roundId]?.remove(judgeId);
-          await loadRound(roundId);
-        }
-        return error;
+        _excusedKept[roundId]?.remove(judgeId);
+        return _remote(
+          (a) => a.updateRoundJudge(roundId, judgeId, status: 'assigned'),
+          roundId: roundId,
+          parts: _judgeParts,
+        );
       case 'remove':
         _excusedKept[roundId]?.remove(judgeId);
-        return _remote((a) => a.removeRoundJudge(roundId, judgeId), roundId: roundId);
+        return _remote((a) => a.removeRoundJudge(roundId, judgeId), roundId: roundId, parts: _judgeParts);
     }
     return _notConnected;
   }
 
   /// Re-adds the device-kept excused judges the server no longer lists.
-  void _keepExcused(int roundId) {
+  void _keepExcused(String roundId) {
     final kept = _excusedKept[roundId];
     if (kept == null || kept.isEmpty) return;
     final list = _judgeAssignments.putIfAbsent(roundId, () => []);
@@ -827,51 +1018,73 @@ class AdminStore extends ChangeNotifier {
 
   /// Copies judges and/or criteria from [sourceId] into the draft target
   /// with the assignment / criteria endpoints.
-  Future<String?> copyConfigurationAction(int sourceId, int targetId, {required bool judges, required bool criteria}) async {
+  Future<String?> copyConfigurationAction(
+    String sourceId,
+    String targetId, {
+    required bool judges,
+    required bool criteria,
+  }) async {
     if (!connected) {
       return copyRoundConfiguration(sourceId, targetId, judges: judges, criteria: criteria)
           ? null
           : 'Copy is available only into the next Draft round.';
     }
     // Inactive master judges are not copied into the new round.
-    final judgeIds = [for (final (a, j) in getRoundJudges(sourceId)) if (a.status == 'assigned' && j.active) a.judgeId];
+    final judgeIds = [
+      for (final (a, j) in getRoundJudges(sourceId))
+        if (a.status == 'assigned' && j.active) a.judgeId,
+    ];
     final requiredOf = {for (final (a, _) in getRoundJudges(sourceId)) a.judgeId: a.required};
-    final existingJudges = {for (final (a, _) in getRoundJudges(targetId)) if (a.status == 'assigned') a.judgeId};
+    final existingJudges = {
+      for (final (a, _) in getRoundJudges(targetId))
+        if (a.status == 'assigned') a.judgeId,
+    };
     final source = getCriteria(sourceId);
     final existingCriteria = getCriteria(targetId);
-    return _remote((a) async {
-      if (judges) {
-        for (final id in judgeIds.where((id) => !existingJudges.contains(id))) {
-          await a.addRoundJudge(targetId, id, required: requiredOf[id] ?? true);
+    return _remote(
+      (a) async {
+        if (judges) {
+          for (final id in judgeIds.where((id) => !existingJudges.contains(id))) {
+            await a.addRoundJudge(targetId, id, required: requiredOf[id] ?? true);
+          }
         }
-      }
-      if (criteria) {
-        // Copy replaces the target's criteria (as offline): appending would
-        // double the weight (e.g. 200%) and block Open Round.
-        for (final c in existingCriteria.where((c) => !c.isParent).followedBy(existingCriteria.where((c) => c.isParent))) {
-          final remoteId = int.tryParse(c.id);
-          if (remoteId != null) await a.deleteCriterion(targetId, remoteId);
+        if (criteria) {
+          // Copy replaces the target's criteria (as offline): appending would
+          // double the weight (e.g. 200%) and block Open Round.
+          if (_loadedRounds.contains(targetId)) {
+            for (final c
+                in existingCriteria.where((c) => !c.isParent).followedBy(existingCriteria.where((c) => c.isParent))) {
+              await a.deleteCriterion(targetId, c.id);
+            }
+          }
+          await _createCriteria(a, targetId, source, {});
         }
-        await _createCriteria(a, targetId, source, {});
-      }
-    }, roundId: targetId);
+      },
+      roundId: targetId,
+      parts: {if (judges) RoundPart.judges, if (criteria) RoundPart.criteria},
+    );
   }
 
   /// Source rounds whose advancement confirm request is in flight.
-  final Set<int> _confirmingAdvancement = {};
+  final Set<String> _confirmingAdvancement = {};
 
   /// True while a confirm is being sent, or once this round's advancement is
   /// confirmed (locally or per the server history) — until it is reset. The
   /// server still answers `can_confirm: true` after a confirmation, so this
   /// is what stops a second (duplicate) confirmation.
-  bool isAdvancementConfirmed(int roundId) =>
+  bool isAdvancementConfirmed(String roundId) =>
       _confirmingAdvancement.contains(roundId) ||
       getAdvancement(roundId) != null ||
       (_advancementInfo[roundId]?.confirmed ?? false);
 
   /// `POST rounds/{id}/advancement` with the source round's
   /// round_contestant ids; reloads the event (target roster changes).
-  Future<String?> confirmAdvancementAction(int roundId, List<int> ids, String reason, {bool includeFavorit = false}) async {
+  Future<String?> confirmAdvancementAction(
+    String roundId,
+    List<int> ids,
+    String reason, {
+    bool includeFavorit = false,
+  }) async {
     if (!connected) {
       final r = confirmAdvancement(roundId, ids, reason);
       return r.ok ? null : r.message;
@@ -879,33 +1092,57 @@ class AdminStore extends ChangeNotifier {
     if (isAdvancementConfirmed(roundId)) return 'Advancement for this round is already confirmed.';
     final check = validateAdvancement(roundId, ids, reason);
     if (!check.ok) return check.message;
-    final rc = _roundContestantIds[roundId] ?? const <int, int>{};
+    final rc = _roundContestantIds[roundId] ?? const <int, String>{};
     final rcIds = [for (final id in ids) ?rc[id]];
-    if (rcIds.length != ids.length) return 'Some selected contestants are not in this round any more. Reload and try again.';
+    if (rcIds.length != ids.length) {
+      return 'Some selected contestants are not in this round any more. Reload and try again.';
+    }
     _confirmingAdvancement.add(roundId);
     try {
       return await _remote(
-        (a) => a.confirmAdvancement(roundId, roundContestantIds: rcIds, reason: reason.trim(), includeFavorit: includeFavorit),
-        reloadEvent: true,
+        (a) => a.confirmAdvancement(
+          roundId,
+          roundContestantIds: rcIds,
+          reason: reason.trim(),
+          includeFavorit: includeFavorit,
+        ),
+        roundId: roundId,
+        parts: const {RoundPart.advancement},
+        also: _advancementTarget(roundId),
       );
     } finally {
       _confirmingAdvancement.remove(roundId);
     }
   }
 
+  /// Advancement changes the next round's roster.
+  Map<String, Set<RoundPart>> _advancementTarget(String sourceId) {
+    final target = getNextRound(sourceId);
+    return target == null
+        ? const {}
+        : {
+            target.id: const {RoundPart.meta, RoundPart.contestants},
+          };
+  }
+
   /// `DELETE rounds/{id}/advancement?reason=` (reason 3–1000 characters).
-  Future<String?> resetAdvancementAction(int roundId, String reason) async {
+  Future<String?> resetAdvancementAction(String roundId, String reason) async {
     if (!connected) {
       return resetAdvancement(roundId, reason) ? null : 'Advancement can only be reset while the next round is Draft.';
     }
     final r = reason.trim();
     if (r.length < 3) return 'The reason must be at least 3 characters.';
-    return _remote((a) => a.resetAdvancement(roundId, r.length > 1000 ? r.substring(0, 1000) : r), reloadEvent: true);
+    return _remote(
+      (a) => a.resetAdvancement(roundId, r.length > 1000 ? r.substring(0, 1000) : r),
+      roundId: roundId,
+      parts: const {RoundPart.advancement},
+      also: _advancementTarget(roundId),
+    );
   }
 
   /// Withdrawal/replacement on an advanced Draft target. With the API there is
   /// no adjustment endpoint: the roster difference is sent (reason not stored).
-  Future<String?> adjustAdvancementAction(int targetRoundId, List<int> ids, String reason) async {
+  Future<String?> adjustAdvancementAction(String targetRoundId, List<int> ids, String reason) async {
     if (!connected) {
       return adjustAdvancementAssignment(targetRoundId, ids, reason) ? null : 'This adjustment is not available now.';
     }
@@ -917,13 +1154,16 @@ class AdminStore extends ChangeNotifier {
   void _mergeJudges(List<Map<String, dynamic>> raw) {
     final numbers = {for (final j in _judges) j.id: j.displayNumber};
     var next = _judges.fold<int>(0, (m, j) => math.max(m, int.tryParse(j.displayNumber) ?? 0)) + 1;
-    final sorted = [...raw]..sort((a, b) => '${a['id']}'.compareTo('${b['id']}'));
+    // Ids are opaque hashes: oldest first (server order breaks ties), so new
+    // judges get the next display number and existing ones keep theirs.
+    final sorted = [for (final (i, j) in raw.indexed) (i, j)]
+      ..sort((a, b) {
+        final byDate = '${a.$2['created_at'] ?? ''}'.compareTo('${b.$2['created_at'] ?? ''}');
+        return byDate != 0 ? byDate : a.$1.compareTo(b.$1);
+      });
     _judges = [
-      for (final j in sorted)
-        JudgeMaster.fromApi(
-          j,
-          displayNumber: numbers[int.tryParse('${j['id']}')] ?? (next++).toString().padLeft(2, '0'),
-        ),
+      for (final (_, j) in sorted)
+        JudgeMaster.fromApi(j, displayNumber: numbers['${j['id']}'] ?? (next++).toString().padLeft(2, '0')),
     ];
   }
 
@@ -953,10 +1193,21 @@ class AdminStore extends ChangeNotifier {
     try {
       if (isNew) {
         await api.createJudge(
-            name: item.name, email: item.email, password: password, phone: item.phone, active: item.active);
+          name: item.name,
+          email: item.email,
+          password: password,
+          phone: item.phone,
+          active: item.active,
+        );
       } else {
-        await api.updateJudge(item.id,
-            name: item.name, email: item.email, password: password, phone: item.phone, active: item.active);
+        await api.updateJudge(
+          item.id,
+          name: item.name,
+          email: item.email,
+          password: password,
+          phone: item.phone,
+          active: item.active,
+        );
       }
     } on ApiException catch (e) {
       return _fail(e);
@@ -968,7 +1219,7 @@ class AdminStore extends ChangeNotifier {
   }
 
   /// `DELETE /judge/admin/judges/{id}`.
-  Future<AdminActionResult> deleteJudge(int id) async {
+  Future<AdminActionResult> deleteJudge(String id) async {
     final api = _api;
     if (api == null) return const AdminActionResult.fail('Deleting judges is not available in this prototype.');
     try {
@@ -982,7 +1233,7 @@ class AdminStore extends ChangeNotifier {
 
   /// `PUT /judge/admin/judges/{id}/roles` (no screen uses it yet — the valid
   /// roles/scopes are still to be agreed with the backend).
-  Future<AdminActionResult> setJudgeRoles(int id, List<(String, String?)> roles) async {
+  Future<AdminActionResult> setJudgeRoles(String id, List<(String, String?)> roles) async {
     final api = _api;
     if (api == null) return const AdminActionResult.fail('Roles are not available in this prototype.');
     try {
@@ -1012,49 +1263,65 @@ class AdminStore extends ChangeNotifier {
   }
 
   static const _placeholderCriteriaNames = [
-    'Interview', 'Stage Presence', 'Evening Gown', 'Talent', 'Final Question', 'Overall Impression',
-    'Communication', 'Confidence',
+    'Interview',
+    'Stage Presence',
+    'Evening Gown',
+    'Talent',
+    'Final Question',
+    'Overall Impression',
+    'Communication',
+    'Confidence',
   ];
 
   /// [count] scored criteria with whole-number weights that add up to 100.
-  List<AdminCriterion> _placeholderCriteria(int roundId, int count) => [
-        for (var i = 0; i < count; i++)
-          AdminCriterion(
-            id: 'c${i + 1}',
-            roundId: roundId,
-            name: i < _placeholderCriteriaNames.length ? _placeholderCriteriaNames[i] : 'Criterion ${i + 1}',
-            weight: (100 ~/ count + (i == count - 1 ? 100 % count : 0)).toDouble(),
-            minScore: eventSettings.minScore,
-            maxScore: eventSettings.maxScore,
-            step: eventSettings.step,
-            sequence: i + 1,
-          ),
-      ];
+  List<AdminCriterion> _placeholderCriteria(String roundId, int count) => [
+    for (var i = 0; i < count; i++)
+      AdminCriterion(
+        id: 'c${i + 1}',
+        roundId: roundId,
+        name: i < _placeholderCriteriaNames.length ? _placeholderCriteriaNames[i] : 'Criterion ${i + 1}',
+        weight: (100 ~/ count + (i == count - 1 ? 100 % count : 0)).toDouble(),
+        minScore: eventSettings.minScore,
+        maxScore: eventSettings.maxScore,
+        step: eventSettings.step,
+        sequence: i + 1,
+      ),
+  ];
 
   // ----------------------------------------------------------------- seed
 
   static const _seedContestants = [
-    ('Mrs Shaida', 'Malaysia'), ('Mrs Beathres', 'Borneo Island, Malaysia'), ('Mrs Baimar', 'Russia'),
-    ('Miss Evgeniya', 'Russia'), ('Miss Nicole', 'Malaysia'), ('Miss Yuka', 'Japan'), ('Miss Park Jinah', 'Korea'),
-    ('Miss Lee Seoyul', 'Korea'), ('Miss Veronika', 'Borneo Island, Indonesia'), ('Miss Bolormaa', 'Mongolia'),
-    ('Mister Hady', 'Borneo Island, Indonesia'), ('Mister Nicholas', 'Malaysia'), ('Mister Azriq', 'Borneo Island, Brunei'),
-    ('Mrs Edelisa', 'Portugal'), ('Mister Jerome', 'Philippines'),
+    ('Mrs Shaida', 'Malaysia'),
+    ('Mrs Beathres', 'Borneo Island, Malaysia'),
+    ('Mrs Baimar', 'Russia'),
+    ('Miss Evgeniya', 'Russia'),
+    ('Miss Nicole', 'Malaysia'),
+    ('Miss Yuka', 'Japan'),
+    ('Miss Park Jinah', 'Korea'),
+    ('Miss Lee Seoyul', 'Korea'),
+    ('Miss Veronika', 'Borneo Island, Indonesia'),
+    ('Miss Bolormaa', 'Mongolia'),
+    ('Mister Hady', 'Borneo Island, Indonesia'),
+    ('Mister Nicholas', 'Malaysia'),
+    ('Mister Azriq', 'Borneo Island, Brunei'),
+    ('Mrs Edelisa', 'Portugal'),
+    ('Mister Jerome', 'Philippines'),
   ];
 
   static String seedPhoto(int id) => 'assets/admin/contestant-${id.toString().padLeft(2, '0')}.jpg';
 
   /// Monitoring source for Round 1 (admin-data.js `judgesByRound`).
-  static const _round1Activity = <int, (int, String, String, String)>{
-    1: (15, 'submitted', 'online', '21:41'),
-    2: (15, 'submitted', 'syncing', '21:40'),
-    3: (15, 'submitted', 'online', '21:39'),
-    4: (12, 'in-progress', 'offline', '21:34'),
-    5: (0, 'not-started', 'online', '21:28'),
-    6: (15, 'submitted', 'online', '21:37'),
-    7: (15, 'submitted', 'online', '21:36'),
+  static const _round1Activity = <String, (int, String, String, String)>{
+    '1': (15, 'submitted', 'online', '21:41'),
+    '2': (15, 'submitted', 'syncing', '21:40'),
+    '3': (15, 'submitted', 'online', '21:39'),
+    '4': (12, 'in-progress', 'offline', '21:34'),
+    '5': (0, 'not-started', 'online', '21:28'),
+    '6': (15, 'submitted', 'online', '21:37'),
+    '7': (15, 'submitted', 'online', '21:36'),
   };
 
-  static List<AdminCriterion> _seedCriteria(int roundId) {
+  static List<AdminCriterion> _seedCriteria(String roundId) {
     AdminCriterion c(String id, String name, double weight, int seq, {String? parent, bool isParent = false}) =>
         AdminCriterion(
           id: id,
@@ -1066,7 +1333,7 @@ class AdminStore extends ChangeNotifier {
           isParent: isParent,
           isScored: !isParent,
         );
-    if (roundId == 1) {
+    if (roundId == '1') {
       return [
         c('interview', 'Interview', 0, 1, isParent: true),
         c('communication', 'Communication', 10, 2, parent: 'interview'),
@@ -1076,17 +1343,21 @@ class AdminStore extends ChangeNotifier {
         c('stage-presence', 'Stage Presence', 40, 6),
       ];
     }
-    if (roundId == 2) {
-      return [c('interview', 'Interview', 30, 1), c('stage-presence', 'Stage Presence', 30, 2), c('evening-gown', 'Evening Gown', 40, 3)];
+    if (roundId == '2') {
+      return [
+        c('interview', 'Interview', 30, 1),
+        c('stage-presence', 'Stage Presence', 30, 2),
+        c('evening-gown', 'Evening Gown', 40, 3),
+      ];
     }
     return [c('final-question', 'Final Question', 40, 1), c('overall-impression', 'Overall Impression', 60, 2)];
   }
 
   void _seed() {
     rounds = [
-      AdminRound(id: 1, order: 1, name: 'Preliminary', status: 'open', advancementCount: 10),
-      AdminRound(id: 2, order: 2, name: 'Top 10', status: 'draft', advancementCount: 5),
-      AdminRound(id: 3, order: 3, name: 'Final', status: 'draft'),
+      AdminRound(id: '1', order: 1, name: 'Preliminary', status: 'open', advancementCount: 10),
+      AdminRound(id: '2', order: 2, name: 'Top 10', status: 'draft', advancementCount: 5),
+      AdminRound(id: '3', order: 3, name: 'Final', status: 'draft'),
     ];
     _contestants = [
       for (var i = 0; i < _seedContestants.length; i++)
@@ -1100,22 +1371,33 @@ class AdminStore extends ChangeNotifier {
     ];
     _judges = [
       for (final (id, name) in [
-        (1, 'Ratih Pramesti'), (2, 'Dimas Ardiansyah'), (3, 'Amanda Wijaya'), (4, 'Budi Santoso'),
-        (5, 'Maria Tan'), (6, 'Kevin Mahendra'), (7, 'Sari Handayani'),
+        (1, 'Ratih Pramesti'),
+        (2, 'Dimas Ardiansyah'),
+        (3, 'Amanda Wijaya'),
+        (4, 'Budi Santoso'),
+        (5, 'Maria Tan'),
+        (6, 'Kevin Mahendra'),
+        (7, 'Sari Handayani'),
       ])
         JudgeMaster(
-          id: id,
+          id: '$id',
           displayNumber: id.toString().padLeft(2, '0'),
           name: name,
           email: '${name.split(' ').first.toLowerCase()}@example.test',
           phone: '+62 811 000$id',
         ),
     ];
-    _contestantAssignments = {1: [for (final c in _contestants) c.id], 2: [], 3: []};
-    _judgeAssignments = {
-      for (final r in [1, 2, 3]) r: [for (final j in _judges) JudgeAssignment(judgeId: j.id, roundId: r)],
+    _contestantAssignments = {
+      '1': [for (final c in _contestants) c.id],
+      '2': [],
+      '3': [],
     };
-    _criteriaByRound = {for (final r in [1, 2, 3]) r: _seedCriteria(r)};
+    _judgeAssignments = {
+      for (final r in ['1', '2', '3']) r: [for (final j in _judges) JudgeAssignment(judgeId: j.id, roundId: r)],
+    };
+    _criteriaByRound = {
+      for (final r in ['1', '2', '3']) r: _seedCriteria(r),
+    };
     _reopensByRound = {};
     _submissionOverrides = {};
     _auditEvents = [];
@@ -1129,45 +1411,50 @@ class AdminStore extends ChangeNotifier {
 
   // ---------------------------------------------------------- persistence
 
-  static Map<int, T> _intMap<T>(Object? raw, T Function(Object? v) f) => {
-        if (raw is Map)
-          for (final e in raw.entries)
-            if (int.tryParse('${e.key}') != null) int.parse('${e.key}'): f(e.value),
-      };
+  /// Stored maps keyed by a server id (round / judge).
+  static Map<String, T> _idMap<T>(Object? raw, T Function(Object? v) f) => {
+    if (raw is Map)
+      for (final e in raw.entries) e.key: f(e.value),
+  };
 
   void _restore(Map<String, dynamic> j) {
-    final statuses = _intMap(j['roundStatusById'], (v) => '$v');
+    final statuses = _idMap(j['roundStatusById'], (v) => '$v');
     for (final r in rounds) {
       r.status = statuses[r.id] ?? r.status;
     }
     if (j['contestants'] is List) {
-      _contestants = [for (final c in j['contestants'] as List) ContestantMaster.fromJson(Map<String, dynamic>.from(c as Map))];
+      _contestants = [
+        for (final c in j['contestants'] as List) ContestantMaster.fromJson(Map<String, dynamic>.from(c as Map)),
+      ];
     }
     if (j['judges'] is List) {
       _judges = [for (final c in j['judges'] as List) JudgeMaster.fromJson(Map<String, dynamic>.from(c as Map))];
     }
     if (j['contestantAssignments'] is Map) {
-      _contestantAssignments = _intMap(j['contestantAssignments'], (v) => [for (final i in v as List) (i as num).toInt()]);
+      _contestantAssignments = _idMap(
+        j['contestantAssignments'],
+        (v) => [for (final i in v as List) (i as num).toInt()],
+      );
     }
     if (j['judgeAssignments'] is Map) {
-      _judgeAssignments = _intMap(
+      _judgeAssignments = _idMap(
         j['judgeAssignments'],
         (v) => [for (final a in v as List) JudgeAssignment.fromJson(Map<String, dynamic>.from(a as Map))],
       );
     }
     if (j['criteriaByRound'] is Map) {
-      _criteriaByRound = _intMap(
+      _criteriaByRound = _idMap(
         j['criteriaByRound'],
         (v) => [for (final a in v as List) AdminCriterion.fromJson(Map<String, dynamic>.from(a as Map))],
       );
     }
-    _reopensByRound = _intMap(
+    _reopensByRound = _idMap(
       j['reopensByRound'],
       (v) => [for (final a in v as List) ReopenRecord.fromJson(Map<String, dynamic>.from(a as Map))],
     );
-    _submissionOverrides = _intMap(
+    _submissionOverrides = _idMap(
       j['submissionOverridesByRound'],
-      (v) => _intMap(v, (o) {
+      (v) => _idMap(v, (o) {
         final m = Map<String, dynamic>.from(o as Map);
         return (status: '${m['status']}', submittedAt: DateTime.tryParse('${m['submittedAt']}'));
       }),
@@ -1175,11 +1462,16 @@ class AdminStore extends ChangeNotifier {
     _auditEvents = [
       for (final a in (j['auditEvents'] as List? ?? const [])) AuditEvent.fromJson(Map<String, dynamic>.from(a as Map)),
     ];
-    _snapshots = _intMap(j['resultSnapshotByRound'], (v) => RoundResult.snapshotFromJson(Map<String, dynamic>.from(v as Map)));
-    _visibility = _intMap(j['resultVisibilityByRound'], (v) => v == true);
-    _tieAcknowledged = _intMap(j['tieAcknowledgementByRound'], (v) => v == true);
-    _advancementBySource =
-        _intMap(j['advancementBySource'], (v) => Advancement.fromJson(Map<String, dynamic>.from(v as Map)));
+    _snapshots = _idMap(
+      j['resultSnapshotByRound'],
+      (v) => RoundResult.snapshotFromJson(Map<String, dynamic>.from(v as Map)),
+    );
+    _visibility = _idMap(j['resultVisibilityByRound'], (v) => v == true);
+    _tieAcknowledged = _idMap(j['tieAcknowledgementByRound'], (v) => v == true);
+    _advancementBySource = _idMap(
+      j['advancementBySource'],
+      (v) => Advancement.fromJson(Map<String, dynamic>.from(v as Map)),
+    );
     _advancementHistory = [
       for (final h in (j['advancementHistory'] as List? ?? const [])) Map<String, dynamic>.from(h as Map),
     ];
@@ -1189,35 +1481,35 @@ class AdminStore extends ChangeNotifier {
   }
 
   Map<String, dynamic> _toJson() => {
-        'schemaVersion': schemaVersion,
-        'roundStatusById': {for (final r in rounds) '${r.id}': r.status},
-        'contestants': [for (final c in _contestants) c.toJson()],
-        'judges': [for (final c in _judges) c.toJson()],
-        'contestantAssignments': {for (final e in _contestantAssignments.entries) '${e.key}': e.value},
-        'judgeAssignments': {
-          for (final e in _judgeAssignments.entries) '${e.key}': [for (final a in e.value) a.toJson()],
+    'schemaVersion': schemaVersion,
+    'roundStatusById': {for (final r in rounds) r.id: r.status},
+    'contestants': [for (final c in _contestants) c.toJson()],
+    'judges': [for (final c in _judges) c.toJson()],
+    'contestantAssignments': {for (final e in _contestantAssignments.entries) e.key: e.value},
+    'judgeAssignments': {
+      for (final e in _judgeAssignments.entries) e.key: [for (final a in e.value) a.toJson()],
+    },
+    'criteriaByRound': {
+      for (final e in _criteriaByRound.entries) e.key: [for (final a in e.value) a.toJson()],
+    },
+    'reopensByRound': {
+      for (final e in _reopensByRound.entries) e.key: [for (final a in e.value) a.toJson()],
+    },
+    'submissionOverridesByRound': {
+      for (final e in _submissionOverrides.entries)
+        e.key: {
+          for (final o in e.value.entries)
+            o.key: {'status': o.value.status, 'submittedAt': o.value.submittedAt?.toIso8601String()},
         },
-        'criteriaByRound': {
-          for (final e in _criteriaByRound.entries) '${e.key}': [for (final a in e.value) a.toJson()],
-        },
-        'reopensByRound': {
-          for (final e in _reopensByRound.entries) '${e.key}': [for (final a in e.value) a.toJson()],
-        },
-        'submissionOverridesByRound': {
-          for (final e in _submissionOverrides.entries)
-            '${e.key}': {
-              for (final o in e.value.entries)
-                '${o.key}': {'status': o.value.status, 'submittedAt': o.value.submittedAt?.toIso8601String()},
-            },
-        },
-        'auditEvents': [for (final a in _auditEvents) a.toJson()],
-        'resultSnapshotByRound': {for (final e in _snapshots.entries) '${e.key}': e.value.toJson()},
-        'resultVisibilityByRound': {for (final e in _visibility.entries) '${e.key}': e.value},
-        'tieAcknowledgementByRound': {for (final e in _tieAcknowledged.entries) '${e.key}': e.value},
-        'advancementBySource': {for (final e in _advancementBySource.entries) '${e.key}': e.value.toJson()},
-        'advancementHistory': _advancementHistory,
-        'eventSettings': eventSettings.toJson(),
-      };
+    },
+    'auditEvents': [for (final a in _auditEvents) a.toJson()],
+    'resultSnapshotByRound': {for (final e in _snapshots.entries) e.key: e.value.toJson()},
+    'resultVisibilityByRound': {for (final e in _visibility.entries) e.key: e.value},
+    'tieAcknowledgementByRound': {for (final e in _tieAcknowledged.entries) e.key: e.value},
+    'advancementBySource': {for (final e in _advancementBySource.entries) e.key: e.value.toJson()},
+    'advancementHistory': _advancementHistory,
+    'eventSettings': eventSettings.toJson(),
+  };
 
   bool _save() {
     notifyListeners();
@@ -1246,17 +1538,17 @@ class AdminStore extends ChangeNotifier {
 
   // -------------------------------------------------------------- queries
 
-  AdminRound? getRound(int id) => rounds.where((r) => r.id == id).firstOrNull;
+  AdminRound? getRound(String id) => rounds.where((r) => r.id == id).firstOrNull;
 
   List<AdminRound> get orderedRounds => [...rounds]..sort((a, b) => a.order.compareTo(b.order));
 
-  AdminRound? getNextRound(int roundId) {
+  AdminRound? getNextRound(String roundId) {
     final round = getRound(roundId);
     if (round == null) return null;
     return orderedRounds.where((r) => r.order > round.order).firstOrNull;
   }
 
-  AdminRound? getPreviousRound(int roundId) {
+  AdminRound? getPreviousRound(String roundId) {
     final round = getRound(roundId);
     if (round == null) return null;
     return orderedRounds.reversed.where((r) => r.order < round.order).firstOrNull;
@@ -1273,33 +1565,35 @@ class AdminStore extends ChangeNotifier {
   List<ContestantMaster> get contestants => List.unmodifiable(_contestants);
   List<JudgeMaster> get judges => List.unmodifiable(_judges);
   ContestantMaster? getContestant(int id) => _contestants.where((c) => c.id == id).firstOrNull;
-  JudgeMaster? getJudge(int id) => _judges.where((j) => j.id == id).firstOrNull;
+  JudgeMaster? getJudge(String id) => _judges.where((j) => j.id == id).firstOrNull;
 
-  List<ContestantMaster> getRoundContestants(int roundId) {
+  List<ContestantMaster> getRoundContestants(String roundId) {
     final ids = _contestantAssignments[roundId] ?? const [];
     return _contestants.where((c) => ids.contains(c.id)).toList();
   }
 
-  List<(JudgeAssignment, JudgeMaster)> getRoundJudges(int roundId) => [
-        for (final a in _judgeAssignments[roundId] ?? const <JudgeAssignment>[])
-          if (getJudge(a.judgeId) != null) (a, getJudge(a.judgeId)!),
-      ];
+  List<(JudgeAssignment, JudgeMaster)> getRoundJudges(String roundId) => [
+    for (final a in _judgeAssignments[roundId] ?? const <JudgeAssignment>[])
+      if (getJudge(a.judgeId) != null) (a, getJudge(a.judgeId)!),
+  ];
 
-  List<String> roundsForContestant(int id) =>
-      [for (final r in orderedRounds) if (getRoundContestants(r.id).any((c) => c.id == id)) r.name];
+  List<String> roundsForContestant(int id) => [
+    for (final r in orderedRounds)
+      if (getRoundContestants(r.id).any((c) => c.id == id)) r.name,
+  ];
 
-  List<String> roundsForJudge(int id) => [
-        for (final r in orderedRounds)
-          if (getRoundJudges(r.id).any((e) => e.$1.judgeId == id && e.$1.status == 'assigned')) r.name,
-      ];
+  List<String> roundsForJudge(String id) => [
+    for (final r in orderedRounds)
+      if (getRoundJudges(r.id).any((e) => e.$1.judgeId == id && e.$1.status == 'assigned')) r.name,
+  ];
 
-  List<AdminCriterion> getCriteria(int roundId) => [for (final c in _criteriaByRound[roundId] ?? const []) c.copy()];
+  List<AdminCriterion> getCriteria(String roundId) => [for (final c in _criteriaByRound[roundId] ?? const []) c.copy()];
 
   /// Sole effective-weight calculation: only scored, non-parent criteria count.
   static double effectiveScoredWeight(List<AdminCriterion> criteria) =>
       criteria.where((c) => c.isScored && !c.isParent).fold(0, (s, c) => s + c.weight);
 
-  List<MonitoringJudge> getMonitoringJudges(int roundId) {
+  List<MonitoringJudge> getMonitoringJudges(String roundId) {
     final round = getRound(roundId);
     final contestantCount = getRoundContestants(roundId).length;
     return [
@@ -1327,15 +1621,15 @@ class AdminStore extends ChangeNotifier {
               submittedAt: p?.submittedAt,
             );
           }
-          (int, String, String, String)? source = roundId == 1 ? _round1Activity[judge.id] : null;
+          (int, String, String, String)? source = roundId == '1' ? _round1Activity[judge.id] : null;
           if (source == null && round != null && round.status != 'draft') {
             // A closed/finalized round only got there with every sheet in.
-            final demoSubmitted = round.status != 'open' || [1, 2, 6, 7].contains(judge.id);
+            final demoSubmitted = round.status != 'open' || ['1', '2', '6', '7'].contains(judge.id);
             source = demoSubmitted
                 ? (contestantCount, 'submitted', 'online', '—')
-                : judge.id == 4
-                    ? (math.max(0, contestantCount - 3), 'in-progress', 'online', '—')
-                    : (0, 'not-started', 'online', '—');
+                : judge.id == '4'
+                ? (math.max(0, contestantCount - 3), 'in-progress', 'online', '—')
+                : (0, 'not-started', 'online', '—');
           }
           final override = _submissionOverrides[roundId]?[judge.id];
           var status = source?.$2 ?? 'not-started';
@@ -1360,13 +1654,13 @@ class AdminStore extends ChangeNotifier {
     ];
   }
 
-  Readiness getRoundReadiness(int roundId) {
+  Readiness getRoundReadiness(String roundId) {
     final round = getRound(roundId)!;
     final contestants = getRoundContestants(roundId);
     final assignments = getRoundJudges(roundId).where((e) => e.$1.status == 'assigned').toList();
     final required = assignments.where((e) => e.$1.required).toList();
     final activity = getMonitoringJudges(roundId);
-    String statusOf(int id) => activity.where((a) => a.id == id).firstOrNull?.submissionStatus ?? 'not-started';
+    String statusOf(String id) => activity.where((a) => a.id == id).firstOrNull?.submissionStatus ?? 'not-started';
     bool done(String s) => s == 'submitted' || s == 'resubmitted';
     final rows = [for (final a in assignments) statusOf(a.$1.judgeId)];
     final summary = SubmissionSummary(
@@ -1379,14 +1673,17 @@ class AdminStore extends ChangeNotifier {
     final criteria = getCriteria(roundId);
     final weight = effectiveScoredWeight(criteria);
     final weightValid = weight == 100;
-    final criteriaValid = criteria.any((c) => c.isScored && !c.isParent) &&
-        criteria.every((c) =>
-            !c.isScored ||
-            c.isParent ||
-            (c.name.trim().isNotEmpty &&
-                c.maxScore > c.minScore &&
-                c.step > 0 &&
-                (c.parentId == null || criteria.any((p) => p.id == c.parentId && p.isParent))));
+    final criteriaValid =
+        criteria.any((c) => c.isScored && !c.isParent) &&
+        criteria.every(
+          (c) =>
+              !c.isScored ||
+              c.isParent ||
+              (c.name.trim().isNotEmpty &&
+                  c.maxScore > c.minScore &&
+                  c.step > 0 &&
+                  (c.parentId == null || criteria.any((p) => p.id == c.parentId && p.isParent))),
+        );
     String pct(double w) => w == w.roundToDouble() ? w.toInt().toString() : w.toStringAsFixed(2);
     return Readiness(
       contestantsAssigned: contestants.length,
@@ -1418,12 +1715,20 @@ class AdminStore extends ChangeNotifier {
     );
   }
 
-  List<ReopenRecord> getReopens(int roundId) => List.unmodifiable(_reopensByRound[roundId] ?? const []);
+  List<ReopenRecord> getReopens(String roundId) => List.unmodifiable(_reopensByRound[roundId] ?? const []);
 
   List<AuditEvent> getAuditEvents() {
     final events = [..._auditEvents];
-    if (!connected && !events.any((e) => e.type == 'submit' && e.roundId == 1 && e.judgeId == 3)) {
-      events.add(AuditEvent(type: 'submit', roundId: 1, judgeId: 3, at: DateTime(2026, 9, 23, 21, 42), actor: 'Amanda Wijaya'));
+    if (!connected && !events.any((e) => e.type == 'submit' && e.roundId == '1' && e.judgeId == '3')) {
+      events.add(
+        AuditEvent(
+          type: 'submit',
+          roundId: '1',
+          judgeId: '3',
+          at: DateTime(2026, 9, 23, 21, 42),
+          actor: 'Amanda Wijaya',
+        ),
+      );
     }
     return events..sort((a, b) => b.at.compareTo(a.at));
   }
@@ -1451,7 +1756,9 @@ class AdminStore extends ChangeNotifier {
   }
 
   int nextContestantId() => _contestants.fold(0, (m, c) => math.max(m, c.id)) + 1;
-  int nextJudgeId() => _judges.fold(0, (m, c) => math.max(m, c.id)) + 1;
+
+  /// Prototype only (no API): the next numeric judge id, as a string.
+  String nextJudgeId() => '${_judges.fold(0, (m, c) => math.max(m, int.tryParse(c.id) ?? 0)) + 1}';
 
   bool setEventSettings(EventSettings settings) {
     eventSettings = settings;
@@ -1460,26 +1767,28 @@ class AdminStore extends ChangeNotifier {
 
   // ------------------------------------------------- commands: round configuration
 
-  bool setRoundContestantAssignments(int roundId, List<int> ids) {
+  bool setRoundContestantAssignments(String roundId, List<int> ids) {
     if (getRound(roundId)?.status != 'draft' || getAdvancementForTarget(roundId) != null) return false;
     _contestantAssignments[roundId] = [...ids];
     _save();
     return true;
   }
 
-  void setJudgeAssignment(int roundId, int judgeId, bool enabled) {
+  void setJudgeAssignment(String roundId, String judgeId, bool enabled) {
     if (getRound(roundId)?.status != 'draft') return;
     final list = _judgeAssignments.putIfAbsent(roundId, () => []);
     final a = list.where((x) => x.judgeId == judgeId).firstOrNull;
     if (a == null && enabled) {
-      list.add(JudgeAssignment(judgeId: judgeId, roundId: roundId, required: eventSettings.defaultJudgeAssignmentRequired));
+      list.add(
+        JudgeAssignment(judgeId: judgeId, roundId: roundId, required: eventSettings.defaultJudgeAssignmentRequired),
+      );
     } else if (a != null) {
       a.status = enabled ? 'assigned' : 'unassigned';
     }
     _save();
   }
 
-  void setJudgeRequired(int roundId, int judgeId, bool required) {
+  void setJudgeRequired(String roundId, String judgeId, bool required) {
     if (getRound(roundId)?.status != 'draft') return;
     final a = (_judgeAssignments[roundId] ?? const <JudgeAssignment>[])
         .where((x) => x.judgeId == judgeId && x.status == 'assigned')
@@ -1490,7 +1799,7 @@ class AdminStore extends ChangeNotifier {
     }
   }
 
-  bool setCriteria(int roundId, List<AdminCriterion> criteria) {
+  bool setCriteria(String roundId, List<AdminCriterion> criteria) {
     if (getRound(roundId)?.status != 'draft') return false;
     _criteriaByRound[roundId] = [for (final c in criteria) c.copy(roundId: roundId)];
     _save();
@@ -1499,20 +1808,26 @@ class AdminStore extends ChangeNotifier {
 
   // ----------------------------------------------------------- commands: lifecycle
 
-  void _audit(String type, int? roundId, [int? judgeId, String reason = '']) {
-    _auditEvents.add(AuditEvent(type: type, roundId: roundId, judgeId: judgeId, reason: reason, at: DateTime.now(), actor: actor));
+  void _audit(String type, String? roundId, [String? judgeId, String reason = '']) {
+    _auditEvents.add(
+      AuditEvent(type: type, roundId: roundId, judgeId: judgeId, reason: reason, at: DateTime.now(), actor: actor),
+    );
   }
 
-  bool canOpenRound(int roundId) {
+  bool canOpenRound(String roundId) {
     final round = getRound(roundId);
     final previous = getPreviousRound(roundId);
     if (round == null || round.status != 'draft') return false;
     if (previous != null && getAdvancement(previous.id) == null) return false;
     final r = getRoundReadiness(roundId);
-    return r.contestantsAssigned > 0 && r.judgesAssigned > 0 && r.requiredJudges > 0 && r.weightValid && r.criteriaValid;
+    return r.contestantsAssigned > 0 &&
+        r.judgesAssigned > 0 &&
+        r.requiredJudges > 0 &&
+        r.weightValid &&
+        r.criteriaValid;
   }
 
-  bool openRound(int roundId) {
+  bool openRound(String roundId) {
     if (!canOpenRound(roundId)) return false;
     getRound(roundId)!.status = 'open';
     _audit('open', roundId);
@@ -1520,7 +1835,7 @@ class AdminStore extends ChangeNotifier {
     return true;
   }
 
-  bool closeRound(int roundId) {
+  bool closeRound(String roundId) {
     if (!getRoundReadiness(roundId).readyToClose) return false;
     getRound(roundId)!.status = 'closed';
     _audit('close', roundId);
@@ -1530,7 +1845,7 @@ class AdminStore extends ChangeNotifier {
 
   // ----------------------------------------------------------- commands: governance
 
-  AdminActionResult reopen(int roundId, int judgeId, String reason) {
+  AdminActionResult reopen(String roundId, String judgeId, String reason) {
     reason = reason.trim();
     final judge = getMonitoringJudges(roundId).where((j) => j.id == judgeId).firstOrNull;
     if (reason.isEmpty) return const AdminActionResult.fail('A reason is required.');
@@ -1539,14 +1854,18 @@ class AdminStore extends ChangeNotifier {
         !['submitted', 'resubmitted'].contains(judge.submissionStatus)) {
       return const AdminActionResult.fail('This action is not available now. Refresh and check round readiness.');
     }
-    _reopensByRound.putIfAbsent(roundId, () => []).add(ReopenRecord(
-          judgeId: judgeId,
-          roundId: roundId,
-          reason: reason,
-          originalSubmittedAt: judge.submittedAt,
-          reopenedAt: DateTime.now(),
-          reopenedBy: actor,
-        ));
+    _reopensByRound
+        .putIfAbsent(roundId, () => [])
+        .add(
+          ReopenRecord(
+            judgeId: judgeId,
+            roundId: roundId,
+            reason: reason,
+            originalSubmittedAt: judge.submittedAt,
+            reopenedAt: DateTime.now(),
+            reopenedBy: actor,
+          ),
+        );
     _submissionOverrides.putIfAbsent(roundId, () => {})[judgeId] = (status: 'reopened', submittedAt: judge.submittedAt);
     _audit('reopen', roundId, judgeId, reason);
     _save();
@@ -1554,9 +1873,11 @@ class AdminStore extends ChangeNotifier {
   }
 
   /// excuse (reason required) | restore | remove (only without scoring activity)
-  AdminActionResult updateJudgeAssignment(int roundId, int judgeId, String action, [String reason = '']) {
+  AdminActionResult updateJudgeAssignment(String roundId, String judgeId, String action, [String reason = '']) {
     reason = reason.trim();
-    final assignment = (_judgeAssignments[roundId] ?? const <JudgeAssignment>[]).where((a) => a.judgeId == judgeId).firstOrNull;
+    final assignment = (_judgeAssignments[roundId] ?? const <JudgeAssignment>[])
+        .where((a) => a.judgeId == judgeId)
+        .firstOrNull;
     if (getRound(roundId)?.status != 'open' || assignment == null) {
       return const AdminActionResult.fail('Judge governance is available only while this round is open.');
     }
@@ -1578,16 +1899,20 @@ class AdminStore extends ChangeNotifier {
     }
     if (action == 'remove' && assignment.status == 'assigned') {
       if (judge != null &&
-          (judge.completed > 0 || ['submitted', 'resubmitted', 'reopened', 'in-progress'].contains(judge.submissionStatus))) {
+          (judge.completed > 0 ||
+              ['submitted', 'resubmitted', 'reopened', 'in-progress'].contains(judge.submissionStatus))) {
         return const AdminActionResult.fail(
-            'This judge already has scoring activity. Use Excused or Reopen governance instead.');
+          'This judge already has scoring activity. Use Excused or Reopen governance instead.',
+        );
       }
       assignment.status = 'removed';
       _audit('remove', roundId, judgeId);
       _save();
       return const AdminActionResult.ok();
     }
-    return AdminActionResult.fail(action == 'excuse' ? 'A reason is required.' : 'This action is not available for this judge.');
+    return AdminActionResult.fail(
+      action == 'excuse' ? 'A reason is required.' : 'This action is not available for this judge.',
+    );
   }
 
   // --------------------------------------------------------------- results
@@ -1597,43 +1922,48 @@ class AdminStore extends ChangeNotifier {
     2: {'communication': 8.5, 'confidence': 8.75, 'substance': 8.75, 'evening-gown': 9, 'stage-presence': 8.75},
   };
 
-  List<AdminCriterion> scoredCriteria(int roundId) => getCriteria(roundId).where((c) => c.isScored && !c.isParent).toList();
+  List<AdminCriterion> scoredCriteria(String roundId) =>
+      getCriteria(roundId).where((c) => c.isScored && !c.isParent).toList();
 
   /// Prototype reference score sheet (no Admin API for judge sheets yet).
-  Map<String, double> getJudgeScoreSheet(int roundId, int judgeId, int contestantId) {
+  Map<String, double> getJudgeScoreSheet(String roundId, String judgeId, int contestantId) {
     final criteria = scoredCriteria(roundId);
     return {
       for (var i = 0; i < criteria.length; i++)
-        criteria[i].id: (roundId == 1 && judgeId == 3 && _reference[contestantId]?[criteria[i].id] != null)
+        criteria[i].id: (roundId == '1' && judgeId == '3' && _reference[contestantId]?[criteria[i].id] != null)
             ? _reference[contestantId]![criteria[i].id]!
-            : math.max(
-                1,
-                math.min(
-                  10,
-                  6.25 +
-                      ((contestantId * 13) % 15) * 0.25 +
-                      ((judgeId % 3) - 1) * 0.25 +
-                      (((i * 2) % 3) - 1) * 0.25,
-                ),
-              ).toDouble(),
+            : math
+                  .max(
+                    1,
+                    math.min(
+                      10,
+                      6.25 +
+                          ((contestantId * 13) % 15) * 0.25 +
+                          (((int.tryParse(judgeId) ?? judgeId.hashCode) % 3) - 1) * 0.25 +
+                          (((i * 2) % 3) - 1) * 0.25,
+                    ),
+                  )
+                  .toDouble(),
     };
   }
 
-  double? calculateContestantJudgeTotal(int roundId, int judgeId, int contestantId) {
+  double? calculateContestantJudgeTotal(String roundId, String judgeId, int contestantId) {
     final criteria = scoredCriteria(roundId);
     if (criteria.isEmpty) return null;
     final sheet = getJudgeScoreSheet(roundId, judgeId, contestantId);
     return criteria.fold<double>(0, (s, c) => s + sheet[c.id]! * c.weight / 10);
   }
 
-  List<MonitoringJudge> getEligibleResultJudges(int roundId) => getMonitoringJudges(roundId)
-      .where((j) =>
-          j.assignmentStatus == 'assigned' &&
-          j.required &&
-          (j.submissionStatus == 'submitted' || j.submissionStatus == 'resubmitted'))
+  List<MonitoringJudge> getEligibleResultJudges(String roundId) => getMonitoringJudges(roundId)
+      .where(
+        (j) =>
+            j.assignmentStatus == 'assigned' &&
+            j.required &&
+            (j.submissionStatus == 'submitted' || j.submissionStatus == 'resubmitted'),
+      )
       .toList();
 
-  RoundResult calculateRoundResults(int roundId) {
+  RoundResult calculateRoundResults(String roundId) {
     final round = getRound(roundId);
     if (round == null) return const RoundResult.unavailable('Round not found.');
     if (round.status == 'finalized') {
@@ -1643,19 +1973,23 @@ class AdminStore extends ChangeNotifier {
       return round.status == 'closed'
           ? _provisional[roundId] ?? const RoundResult.unavailable('The server has not calculated this result yet.')
           : const RoundResult.unavailable(
-              'Results are unavailable while judging is open. Close the round after all required judges have submitted.');
+              'Results are unavailable while judging is open. Close the round after all required judges have submitted.',
+            );
     }
     if (round.status != 'closed') {
       return const RoundResult.unavailable(
-          'Results are unavailable while judging is open. Close the round after all required judges have submitted.');
+        'Results are unavailable while judging is open. Close the round after all required judges have submitted.',
+      );
     }
     return _computeResults(roundId);
   }
 
-  RoundResult _computeResults(int roundId) {
+  RoundResult _computeResults(String roundId) {
     final ready = getRoundReadiness(roundId);
     if (ready.requiredJudges == 0 || ready.requiredSubmitted != ready.requiredJudges) {
-      return const RoundResult.unavailable('All active Required judges must submit before official results can be calculated.');
+      return const RoundResult.unavailable(
+        'All active Required judges must submit before official results can be calculated.',
+      );
     }
     final eligible = getEligibleResultJudges(roundId);
     final contestants = getRoundContestants(roundId);
@@ -1674,17 +2008,20 @@ class AdminStore extends ChangeNotifier {
             final exclusion = included
                 ? ''
                 : j.assignmentStatus == 'excused'
-                    ? 'Excused — Not Counted'
-                    : j.assignmentStatus == 'removed'
-                        ? 'Removed — Not Counted'
-                        : !j.required
-                            ? 'Optional — Not Counted'
-                            : 'Not Submitted — Not Counted';
+                ? 'Excused — Not Counted'
+                : j.assignmentStatus == 'removed'
+                ? 'Removed — Not Counted'
+                : !j.required
+                ? 'Optional — Not Counted'
+                : 'Not Submitted — Not Counted';
             return JudgeScoreEntry(
               judgeId: j.id,
               judgeNumber: j.number,
               judgeName: j.name,
               total: hasHistory ? calculateContestantJudgeTotal(roundId, j.id, c.id) : null,
+              rawTotal: hasHistory
+                  ? getJudgeScoreSheet(roundId, j.id, c.id).values.fold<double>(0, (s, v) => s + v)
+                  : null,
               included: included,
               exclusion: exclusion,
               criteriaScores: hasHistory ? getJudgeScoreSheet(roundId, j.id, c.id) : const {},
@@ -1694,26 +2031,35 @@ class AdminStore extends ChangeNotifier {
       final counted = scores.where((s) => s.included).toList();
       if (counted.any((s) => s.total == null)) {
         return const RoundResult.unavailable(
-            'An eligible judge score sheet is incomplete. Official ranking cannot be calculated.');
+          'An eligible judge score sheet is incomplete. Official ranking cannot be calculated.',
+        );
       }
       final average = counted.fold<double>(0, (s, e) => s + e.total!) / counted.length;
-      items.add(ResultItem(
-        contestantId: c.id,
-        number: c.number,
-        name: c.name,
-        profesi: c.profesi,
-        photo: c.photo,
-        combinedScore: double.parse(average.toStringAsFixed(2)),
-        eligibleJudgeCount: counted.length,
-        judgeScores: scores,
-      ));
+      items.add(
+        ResultItem(
+          contestantId: c.id,
+          number: c.number,
+          name: c.name,
+          profesi: c.details,
+          photo: c.photo,
+          combinedScore: double.parse(average.toStringAsFixed(2)),
+          eligibleJudgeCount: counted.length,
+          judgeScores: scores,
+          rawScore: _rawAverage(scores),
+        ),
+      );
     }
-    items.sort((a, b) => b.combinedScore != a.combinedScore ? b.combinedScore.compareTo(a.combinedScore) : a.number.compareTo(b.number));
+    items.sort(
+      (a, b) => b.combinedScore != a.combinedScore
+          ? b.combinedScore.compareTo(a.combinedScore)
+          : a.number.compareTo(b.number),
+    );
     for (var i = 0; i < items.length; i++) {
       final prev = i > 0 ? items[i - 1] : null;
       final next = i + 1 < items.length ? items[i + 1] : null;
       items[i].rank = prev != null && prev.combinedScore == items[i].combinedScore ? prev.rank : i + 1;
-      items[i].tied = (prev != null && prev.combinedScore == items[i].combinedScore) ||
+      items[i].tied =
+          (prev != null && prev.combinedScore == items[i].combinedScore) ||
           (next != null && next.combinedScore == items[i].combinedScore);
     }
     return RoundResult(
@@ -1725,18 +2071,18 @@ class AdminStore extends ChangeNotifier {
   }
 
   /// unavailable | provisional | finalized
-  String getRoundResultStatus(int roundId) {
+  String getRoundResultStatus(String roundId) {
     final round = getRound(roundId);
     if (round == null) return 'unavailable';
     if (round.status == 'finalized' && _snapshots[roundId] != null) return 'finalized';
     return calculateRoundResults(roundId).available ? 'provisional' : 'unavailable';
   }
 
-  RoundResult? getResultSnapshot(int roundId) => _snapshots[roundId];
-  bool isResultVisible(int roundId) => getRoundResultStatus(roundId) == 'finalized' && _visibility[roundId] == true;
-  bool isTieAcknowledged(int roundId) => _tieAcknowledged[roundId] == true;
+  RoundResult? getResultSnapshot(String roundId) => _snapshots[roundId];
+  bool isResultVisible(String roundId) => getRoundResultStatus(roundId) == 'finalized' && _visibility[roundId] == true;
+  bool isTieAcknowledged(String roundId) => _tieAcknowledged[roundId] == true;
 
-  bool acknowledgeTie(int roundId) {
+  bool acknowledgeTie(String roundId) {
     final result = calculateRoundResults(roundId);
     if (!result.available || !result.hasTie || result.finalized) return false;
     _tieAcknowledged[roundId] = true;
@@ -1745,7 +2091,7 @@ class AdminStore extends ChangeNotifier {
   }
 
   /// Audit "results calculated" once per round (when first viewed).
-  void noteResultsCalculated(int roundId) {
+  void noteResultsCalculated(String roundId) {
     final result = calculateRoundResults(roundId);
     if (!result.available || result.finalized) return;
     if (!_auditEvents.any((e) => e.type == 'results-calculated' && e.roundId == roundId)) {
@@ -1754,7 +2100,7 @@ class AdminStore extends ChangeNotifier {
     }
   }
 
-  bool finalizeResults(int roundId) {
+  bool finalizeResults(String roundId) {
     final round = getRound(roundId);
     final result = calculateRoundResults(roundId);
     if (round == null ||
@@ -1783,7 +2129,7 @@ class AdminStore extends ChangeNotifier {
     return true;
   }
 
-  bool setResultVisibility(int roundId, bool visible) {
+  bool setResultVisibility(String roundId, bool visible) {
     if (getRoundResultStatus(roundId) != 'finalized') return false;
     if (_visibility[roundId] == visible) return true;
     _visibility[roundId] = visible;
@@ -1794,11 +2140,11 @@ class AdminStore extends ChangeNotifier {
 
   // ----------------------------------------------------------- advancement
 
-  Advancement? getAdvancement(int roundId) => _advancementBySource[roundId];
-  Advancement? getAdvancementForTarget(int roundId) =>
+  Advancement? getAdvancement(String roundId) => _advancementBySource[roundId];
+  Advancement? getAdvancementForTarget(String roundId) =>
       _advancementBySource.values.where((a) => a.targetRoundId == roundId).firstOrNull;
 
-  List<int> getDefaultAdvancementIds(int roundId) {
+  List<int> getDefaultAdvancementIds(String roundId) {
     final info = _advancementInfo[roundId];
     if (info != null) return info.suggestedIds;
     final source = getRound(roundId);
@@ -1807,7 +2153,15 @@ class AdminStore extends ChangeNotifier {
     return [for (final i in snapshot.items.take(source.advancementCount ?? 0)) i.contestantId];
   }
 
-  bool hasAdvancementCutoffTie(int roundId) {
+  /// How many contestants advance: Top N, or every finalist when the result
+  /// has fewer (Top 10 of 7 → 7; otherwise advancement could never be confirmed).
+  int advancementSlots(String roundId) {
+    final topN = getRound(roundId)?.advancementCount ?? 0;
+    final ranked = getResultSnapshot(roundId)?.items.length;
+    return ranked == null ? topN : math.min(topN, ranked);
+  }
+
+  bool hasAdvancementCutoffTie(String roundId) {
     final info = _advancementInfo[roundId];
     if (info != null) return info.cutoffTie;
     final count = getRound(roundId)?.advancementCount ?? 0;
@@ -1818,10 +2172,19 @@ class AdminStore extends ChangeNotifier {
         snapshot.items[count - 1].combinedScore == snapshot.items[count].combinedScore;
   }
 
-  ({bool ok, String? message, bool manual, bool cutoffTie}) validateAdvancement(int roundId, List<int> ids, String reason) {
+  ({bool ok, String? message, bool manual, bool cutoffTie}) validateAdvancement(
+    String roundId,
+    List<int> ids,
+    String reason,
+  ) {
     final info = _advancementInfo[roundId];
     if (info != null && !info.canConfirm) {
-      return (ok: false, message: info.blockingReason ?? 'Advancement is not available now.', manual: false, cutoffTie: info.cutoffTie);
+      return (
+        ok: false,
+        message: info.blockingReason ?? 'Advancement is not available now.',
+        manual: false,
+        cutoffTie: info.cutoffTie,
+      );
     }
     final source = getRound(roundId), target = getNextRound(roundId), snapshot = getResultSnapshot(roundId);
     if (source == null ||
@@ -1830,14 +2193,24 @@ class AdminStore extends ChangeNotifier {
         target == null ||
         target.status != 'draft' ||
         isAdvancementConfirmed(roundId)) {
-      return (ok: false, message: 'Advancement requires finalized results and an unstarted target round.', manual: false, cutoffTie: false);
+      return (
+        ok: false,
+        message: 'Advancement requires finalized results and an unstarted target round.',
+        manual: false,
+        cutoffTie: false,
+      );
     }
-    final count = source.advancementCount ?? 0;
+    final count = advancementSlots(roundId);
     if (count == 0 ||
         ids.length != count ||
         ids.toSet().length != count ||
         ids.any((id) => !snapshot.items.any((i) => i.contestantId == id))) {
-      return (ok: false, message: 'Select exactly $count contestants from the official result.', manual: false, cutoffTie: false);
+      return (
+        ok: false,
+        message: 'Select exactly $count contestants from the official result.',
+        manual: false,
+        cutoffTie: false,
+      );
     }
     final defaults = getDefaultAdvancementIds(roundId);
     final manual = ids.any((id) => !defaults.contains(id));
@@ -1855,7 +2228,7 @@ class AdminStore extends ChangeNotifier {
     return (ok: true, message: null, manual: manual || cutoffTie, cutoffTie: cutoffTie);
   }
 
-  AdminActionResult confirmAdvancement(int roundId, List<int> ids, String reason) {
+  AdminActionResult confirmAdvancement(String roundId, List<int> ids, String reason) {
     final check = validateAdvancement(roundId, ids, reason);
     if (!check.ok) return AdminActionResult.fail(check.message);
     final snapshot = getResultSnapshot(roundId)!;
@@ -1873,24 +2246,34 @@ class AdminStore extends ChangeNotifier {
     _advancementBySource[roundId] = record;
     _contestantAssignments[target.id] = [...ids];
     _advancementHistory.add({'type': 'advancement-confirmed', 'record': record.toJson()});
-    _audit('advancement-confirmed', roundId, null, record.reason.isNotEmpty ? record.reason : '${ids.length} contestants → ${target.name}');
+    _audit(
+      'advancement-confirmed',
+      roundId,
+      null,
+      record.reason.isNotEmpty ? record.reason : '${ids.length} contestants → ${target.name}',
+    );
     _save();
     return const AdminActionResult.ok();
   }
 
-  bool resetAdvancement(int roundId, String reason) {
+  bool resetAdvancement(String roundId, String reason) {
     final record = getAdvancement(roundId);
     reason = reason.trim();
     if (record == null || reason.isEmpty || getRound(record.targetRoundId)?.status != 'draft') return false;
     _contestantAssignments[record.targetRoundId] = [];
     _advancementBySource.remove(roundId);
-    _advancementHistory.add({'type': 'advancement-reset', 'record': record.toJson(), 'reason': reason, 'at': DateTime.now().toIso8601String()});
+    _advancementHistory.add({
+      'type': 'advancement-reset',
+      'record': record.toJson(),
+      'reason': reason,
+      'at': DateTime.now().toIso8601String(),
+    });
     _audit('advancement-reset', roundId, null, reason);
     _save();
     return true;
   }
 
-  bool adjustAdvancementAssignment(int targetRoundId, List<int> ids, String reason) {
+  bool adjustAdvancementAssignment(String targetRoundId, List<int> ids, String reason) {
     final record = getAdvancementForTarget(targetRoundId);
     reason = reason.trim();
     if (record == null || getRound(targetRoundId)?.status != 'draft' || reason.isEmpty) return false;
@@ -1910,7 +2293,12 @@ class AdminStore extends ChangeNotifier {
     return true;
   }
 
-  bool copyRoundConfiguration(int sourceRoundId, int targetRoundId, {required bool judges, required bool criteria}) {
+  bool copyRoundConfiguration(
+    String sourceRoundId,
+    String targetRoundId, {
+    required bool judges,
+    required bool criteria,
+  }) {
     if (getRound(sourceRoundId) == null ||
         getRound(targetRoundId)?.status != 'draft' ||
         getNextRound(sourceRoundId)?.id != targetRoundId ||
@@ -1944,28 +2332,36 @@ class _JudgeProgress {
   final int sheets;
   final bool done;
   final String status; // not-started | in-progress | submitted | resubmitted | reopened
-  final List<int> submittedSheetIds;
+  final List<String> submittedSheetIds;
   final DateTime? submittedAt;
 
   factory _JudgeProgress.fromApi(Map<String, dynamic> j) {
-    final sheets = [for (final s in (j['sheets'] as List? ?? const [])) if (s is Map) Map<String, dynamic>.from(s)];
+    final sheets = [
+      for (final s in (j['sheets'] as List? ?? const []))
+        if (s is Map) Map<String, dynamic>.from(s),
+    ];
     String st(Map<String, dynamic> s) => '${s['status'] ?? ''}'.toLowerCase();
+    bool locked(Map<String, dynamic> s) => ['submitted', 'resubmitted', 'locked'].contains(st(s));
+    // The server marks a reopened sheet with `reopened_at` (its status goes
+    // back to `in_progress`), not with a "reopened" status.
+    bool wasReopened(Map<String, dynamic> s) => st(s) == 'reopened' || s['reopened_at'] != null;
     final done = j['is_done'] == true;
-    final times = [for (final s in sheets) DateTime.tryParse('${s['submitted_at']}')].whereType<DateTime>().toList()..sort();
+    final times = [for (final s in sheets) DateTime.tryParse('${s['submitted_at']}')].whereType<DateTime>().toList()
+      ..sort();
     return _JudgeProgress(
       sheets: sheets.length,
       done: done,
-      status: sheets.any((s) => st(s) == 'reopened')
+      status: sheets.any((s) => wasReopened(s) && !locked(s))
           ? 'reopened'
           : done
-              ? (sheets.any((s) => st(s) == 'resubmitted') ? 'resubmitted' : 'submitted')
-              : sheets.isEmpty
-                  ? 'not-started'
-                  : 'in-progress',
+          ? (sheets.any((s) => st(s) == 'resubmitted' || wasReopened(s)) ? 'resubmitted' : 'submitted')
+          : sheets.isEmpty
+          ? 'not-started'
+          : 'in-progress',
       submittedSheetIds: [
         for (final s in sheets)
-          if (['submitted', 'resubmitted', 'locked'].contains(st(s)) && s['score_sheet_id'] is num)
-            (s['score_sheet_id'] as num).toInt(),
+          if (['submitted', 'resubmitted', 'locked'].contains(st(s)) && s['score_sheet_id'] != null)
+            _sid(s['score_sheet_id']),
       ],
       submittedAt: times.lastOrNull,
     );

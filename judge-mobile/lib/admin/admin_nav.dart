@@ -55,8 +55,10 @@ class AdminRoutes {
 
 class AdminRoundArgs {
   const AdminRoundArgs(this.roundId, {this.judgeId, this.contestantId});
-  final int roundId;
-  final int? judgeId;
+  final String roundId;
+  final String? judgeId;
+
+  /// The app's local contestant id (not a server id).
   final int? contestantId;
 }
 
@@ -66,7 +68,7 @@ class AdminNav {
   static void go(BuildContext context, String route, [Object? args]) =>
       Navigator.of(context).pushReplacementNamed(route, arguments: args);
 
-  static void round(BuildContext context, String route, int roundId, {int? judgeId, int? contestantId}) =>
+  static void round(BuildContext context, String route, String roundId, {String? judgeId, int? contestantId}) =>
       go(context, route, AdminRoundArgs(roundId, judgeId: judgeId, contestantId: contestantId));
 
   static Widget resolve(BuildContext context, RouteSettings settings) {
@@ -92,12 +94,12 @@ class AdminNav {
       case AdminRoutes.audit:
         return const AdminAuditScreen();
     }
-    final args = settings.arguments is AdminRoundArgs ? settings.arguments as AdminRoundArgs : const AdminRoundArgs(1);
+    final args = settings.arguments is AdminRoundArgs ? settings.arguments as AdminRoundArgs : const AdminRoundArgs('');
     if (AdminScope.read(context).getRound(args.roundId) == null) return const _RoundNotFound();
     final id = args.roundId;
     return switch (settings.name) {
       AdminRoutes.monitoring => AdminMonitoringScreen(roundId: id),
-      AdminRoutes.submission => AdminSubmissionScreen(roundId: id, judgeId: args.judgeId ?? 0),
+      AdminRoutes.submission => AdminSubmissionScreen(roundId: id, judgeId: args.judgeId ?? ''),
       AdminRoutes.roundContestants => AdminRoundContestantsScreen(roundId: id),
       AdminRoutes.roundJudges => AdminRoundJudgesScreen(roundId: id),
       AdminRoutes.criteria => AdminCriteriaScreen(roundId: id),

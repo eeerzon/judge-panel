@@ -9,6 +9,7 @@ import '../navigation/judge_nav.dart';
 import '../state/app_scope.dart';
 import '../state/session_store.dart';
 import '../theme/tokens.dart';
+import '../widgets/appearance_toggle.dart';
 import '../widgets/common.dart';
 import 'login_screen.dart' show KreenMark;
 
@@ -66,7 +67,9 @@ class ModeSelectorScreen extends StatelessWidget {
                               style: ts(tiny ? 11 : 12,
                                   weight: FontWeight.w800, color: AppColors.accentBright, letterSpacingEm: 0.17)),
                         ),
-                        const SizedBox(width: 20),
+                        const SizedBox(width: 12),
+                        const AppearanceIconButton(),
+                        const SizedBox(width: 12),
                         _TextButton(label: 'Log Out', onTap: () => SessionScope.read(context).logout()),
                       ]),
                       // .mode-intro: margin clamp(54px, 10vh, 112px) 0 30px
@@ -139,7 +142,7 @@ class _ModeCard extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
-        boxShadow: const [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.18), blurRadius: 55, offset: Offset(0, 18))],
+        boxShadow: [BoxShadow(color: AppColors.cardShadow, blurRadius: 55, offset: const Offset(0, 18))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -17,7 +17,7 @@ const kEventLogoAsset = 'assets/images/kqp-logo.png';
 
 class StandbyScreen extends StatefulWidget {
   const StandbyScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   State<StandbyScreen> createState() => _StandbyScreenState();
@@ -232,7 +232,7 @@ class _StandbyContent extends StatelessWidget {
         ),
         if (submitted) ...[
           SizedBox(height: gap - 8),
-          Text('Judging Submitted', style: ts(13, weight: FontWeight.w600, color: AppColors.statusScoredIcon)),
+          Text('Judging Submitted', style: ts(13, weight: FontWeight.w600, color: AppColors.statusScoredOnPage)),
         ],
         SizedBox(height: gap + (portrait ? 28 : 36)),
         _PulseText('Tap anywhere to start', size: portrait ? 20 : 22),

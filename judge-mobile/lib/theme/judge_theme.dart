@@ -2,8 +2,11 @@
 // it in Settings (`PATCH /judge/admin/events/{idVote}/settings` `id_theme`)
 // and judges receive it in `/judge/rounds` → `vote.theme`. This device keeps
 // a copy per event (SharedPreferences `kreenJudgeTheme.<idVote>`) so Judge
-// Mode keeps its colours offline. Theme id 0 ("default") IS the KREEN
-// default; no choice (`id_theme` null, `source: "vote"`) is KREEN too.
+// Mode keeps its colours offline. Judge Mode follows the theme the server
+// sends — the admin's choice, or else the vote's own (`source: "vote"`);
+// theme id 0 ("Default") is red, like the API. Each theme also has a
+// background picture (`bg-vote-<id>.jpg`, [EventTheme.backgroundUrl]).
+// Without any theme (offline first run, Admin Mode) the KREEN palette stays.
 
 import 'dart:convert';
 
@@ -12,6 +15,12 @@ import 'package:flutter/painting.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'tokens.dart';
+
+/// Host of the Judge Mode background pictures (`bg-vote-<id>.jpg`).
+const kVoteBackgroundBaseUrl = String.fromEnvironment(
+  'KREEN_VOTE_BG_BASE_URL',
+  defaultValue: 'https://dev.kreenconnect.com/image/vote',
+);
 
 /// One entry of `GET /create-vote/themes`.
 class EventTheme {
@@ -24,12 +33,24 @@ class EventTheme {
   /// dark UI, the palette is the KREEN one re-tinted (AppPalette.fromHue).
   final Color primary, icon;
 
-  /// Theme id 0 ("default" in the API) is the KREEN default.
-  static const kreenId = 0;
-  bool get isKreen => id == kreenId;
+  /// Theme id 0 ("default" in the API): red, shown as "Default".
+  static const defaultId = 0;
+  bool get isDefault => id == defaultId;
 
   double get hue => HSLColor.fromColor(primary).hue;
-  AppPalette get palette => isKreen ? AppPalette.kreen : AppPalette.fromHue(hue);
+
+  /// The theme's palette in the current mode (night / light).
+  AppPalette get palette => paletteFor(light: AppColors.light);
+  AppPalette paletteFor({required bool light}) => AppPalette.fromHue(hue, light: light);
+
+  /// Judge Mode background picture of this theme (a light image: shown under
+  /// a dark tint, see ThemedBackground). Override the host with
+  /// `--dart-define=KREEN_VOTE_BG_BASE_URL=…`.
+  String get backgroundUrl => backgroundUrlFor(id);
+
+  /// `bg-vote-default.jpg` for theme 0, `bg-vote-<id>.jpg` for the others.
+  static String backgroundUrlFor(int themeId) =>
+      '$kVoteBackgroundBaseUrl/bg-vote-${themeId == defaultId ? 'default' : themeId}.jpg';
 
   static Color? _rgb(Object? v) {
     final parts = '${v ?? ''}'.split(',').map((p) => int.tryParse(p.trim())).toList();
@@ -37,14 +58,11 @@ class EventTheme {
     return Color.fromARGB(255, parts[0]!, parts[1]!, parts[2]!);
   }
 
-  /// The admin-chosen Judge Mode theme in a `theme` object (event detail,
-  /// settings, `/judge/rounds` → `vote.theme`). Null = KREEN: `source:
-  /// "vote"` (none chosen — it is the vote's web theme) or the default id 0.
-  static EventTheme? chosenFrom(Object? theme) {
-    if (theme is! Map || '${theme['source'] ?? ''}' == 'vote') return null;
-    final chosen = fromApi(Map<String, dynamic>.from(theme));
-    return chosen == null || chosen.isKreen ? null : chosen;
-  }
+  /// The event's theme from a `theme` object (event detail, settings,
+  /// `/judge/rounds` → `vote.theme`): the admin's choice (`source: "judge"`)
+  /// or the vote's own web theme (`source: "vote"`). Null without one.
+  static EventTheme? fromThemeObject(Object? theme) =>
+      theme is Map ? fromApi(Map<String, dynamic>.from(theme)) : null;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -60,8 +78,8 @@ class EventTheme {
     final name = '${j['name'] ?? ''}'.trim();
     return EventTheme(
       id: id,
-      name: id == kreenId
-          ? 'KREEN'
+      name: id == defaultId
+          ? 'Default'
           : name.isEmpty
               ? 'Theme $id'
               : name[0].toUpperCase() + name.substring(1),
@@ -73,7 +91,7 @@ class EventTheme {
   /// `GET /create-vote/themes` as captured on 2026-10-02 — used until (or
   /// when) the live list cannot be loaded.
   static const builtIn = [
-    EventTheme(id: 0, name: 'KREEN', primary: Color(0xFFEB2E2E), icon: Color(0xFFEB2E2E)),
+    EventTheme(id: 0, name: 'Default', primary: Color(0xFFEB2E2E), icon: Color(0xFFEB2E2E)),
     EventTheme(id: 1, name: 'Blue', primary: Color(0xFF29458F), icon: Color(0xFF96B3FF)),
     EventTheme(id: 2, name: 'Pink', primary: Color(0xFF921A40), icon: Color(0xFFFFA7C0)),
     EventTheme(id: 3, name: 'Green', primary: Color(0xFF008F5F), icon: Color(0xFF86E5C6)),
@@ -104,17 +122,17 @@ class JudgeThemeStore extends ChangeNotifier {
   /// Themes an admin can choose (`GET /create-vote/themes`).
   List<EventTheme> themes = EventTheme.builtIn;
 
-  /// Live list, KREEN (id 0) always first.
+  /// Live list, Default (id 0) always first.
   void setThemes(List<EventTheme> live) {
     if (live.isEmpty) return;
     themes = [
-      live.where((t) => t.isKreen).firstOrNull ?? EventTheme.builtIn.first,
-      ...live.where((t) => !t.isKreen),
+      live.where((t) => t.isDefault).firstOrNull ?? EventTheme.builtIn.first,
+      ...live.where((t) => !t.isDefault),
     ];
     notifyListeners();
   }
 
-  /// The event's chosen theme; null = KREEN.
+  /// The event's theme as last received; null = none known (KREEN palette).
   EventTheme? themeFor(String? eventId) {
     if (eventId == null) return null;
     if (_byEvent.containsKey(eventId)) return _byEvent[eventId];
@@ -128,22 +146,24 @@ class JudgeThemeStore extends ChangeNotifier {
 
   int? themeIdFor(String? eventId) => themeFor(eventId)?.id;
 
-  /// Palette for Judge Mode screens showing [eventIds]: the events' theme
-  /// when they all share one, otherwise KREEN.
-  AppPalette paletteFor(Iterable<String?> eventIds) {
+  /// Theme of Judge Mode screens showing [eventIds]: the events' theme when
+  /// they all share one, otherwise none (KREEN palette, no picture).
+  EventTheme? themeForEvents(Iterable<String?> eventIds) {
     final ids = eventIds.whereType<String>().toSet();
-    if (ids.isEmpty) return AppPalette.kreen;
+    if (ids.isEmpty) return null;
     final chosen = {for (final e in ids) themeFor(e)?.id};
-    if (chosen.length != 1 || chosen.single == null) return AppPalette.kreen;
-    return themeFor(ids.first)?.palette ?? AppPalette.kreen;
+    if (chosen.length != 1 || chosen.single == null) return null;
+    return themeFor(ids.first);
   }
+
+  AppPalette paletteFor(Iterable<String?> eventIds) => themeForEvents(eventIds)?.palette ?? AppPalette.kreen;
 
   /// Takes each event's theme from the rounds list (`vote.theme`). Rounds
   /// without a `theme` object (older server) leave the cached value alone.
   void syncFromRounds(Iterable<({String? eventId, Map<String, dynamic>? theme})> rounds) {
     for (final r in rounds) {
       final id = r.eventId;
-      if (id != null && r.theme != null) remember(id, EventTheme.chosenFrom(r.theme));
+      if (id != null && r.theme != null) remember(id, EventTheme.fromThemeObject(r.theme));
     }
   }
 

@@ -13,7 +13,7 @@ import '../widgets/round_workspace.dart';
 
 class AdminAdvancementScreen extends StatefulWidget {
   const AdminAdvancementScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   State<AdminAdvancementScreen> createState() => _State();
@@ -59,7 +59,7 @@ class _State extends State<AdminAdvancementScreen> {
       );
     }
 
-    final count = source.advancementCount ?? 0;
+    final count = admin.advancementSlots(roundId);
     final cutoffTie = admin.hasAdvancementCutoffTie(roundId);
     final ids = [for (final i in result.items) if (_selected.contains(i.contestantId)) i.contestantId];
     final needsReason = cutoffTie || ids.any((id) => !_defaults.contains(id)) || ids.length != _defaults.length;

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:kreen_judge_mobile/screens/splash_logo_screen.dart';
 
 import '../admin/admin_nav.dart';
+import '../admin/admin_scope.dart';
 import '../screens/contestants_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/mode_selector_screen.dart';
@@ -19,7 +20,9 @@ import '../screens/scoring_screen.dart';
 import '../screens/submitted_screen.dart';
 import '../state/app_scope.dart';
 import '../theme/tokens.dart';
+import '../theme/judge_theme.dart';
 import '../widgets/round_gate.dart';
+import '../widgets/themed_background.dart';
 
 /// Where the Scoring page was opened from — decides where Back/exit goes.
 enum ScoringOrigin { gallery, review }
@@ -41,12 +44,12 @@ class Routes {
 
 class RoundArgs {
   const RoundArgs(this.roundId);
-  final int roundId;
+  final String roundId;
 }
 
 class ScoringArgs extends RoundArgs {
   const ScoringArgs(super.roundId, this.contestantId, this.origin);
-  final int contestantId;
+  final String contestantId;
   final ScoringOrigin origin;
 }
 
@@ -62,13 +65,13 @@ class JudgeNav {
 
   static void goToAdmin(BuildContext context) => _go(context, Routes.admin);
   static void goToMyRounds(BuildContext context) => _go(context, Routes.myRounds);
-  static void goToContestants(BuildContext context, int roundId) =>
+  static void goToContestants(BuildContext context, String roundId) =>
       _go(context, Routes.contestants, RoundArgs(roundId));
-  static void goToScoring(BuildContext context, int roundId, int contestantId, [ScoringOrigin origin = ScoringOrigin.gallery]) =>
+  static void goToScoring(BuildContext context, String roundId, String contestantId, [ScoringOrigin origin = ScoringOrigin.gallery]) =>
       _go(context, Routes.scoring, ScoringArgs(roundId, contestantId, origin));
-  static void goToReview(BuildContext context, int roundId) => _go(context, Routes.review, RoundArgs(roundId));
-  static void goToSubmitted(BuildContext context, int roundId) => _go(context, Routes.submitted, RoundArgs(roundId));
-  static void goToResults(BuildContext context, int roundId) => _go(context, Routes.results, RoundArgs(roundId));
+  static void goToReview(BuildContext context, String roundId) => _go(context, Routes.review, RoundArgs(roundId));
+  static void goToSubmitted(BuildContext context, String roundId) => _go(context, Routes.submitted, RoundArgs(roundId));
+  static void goToResults(BuildContext context, String roundId) => _go(context, Routes.results, RoundArgs(roundId));
 
   /// Builds a route and runs the same guards as navigation.js:
   /// - no valid Judge session → Login
@@ -84,8 +87,17 @@ class JudgeNav {
       pageBuilder: (context, _, _) {
         // One page at a time (every navigation replaces the route), so the
         // page's palette is set right before it builds.
-        AppColors.palette = _paletteFor(context, settings);
-        return Theme(data: buildAppTheme(), child: _resolve(context, settings));
+        final light = context.getInheritedWidgetOfExactType<AppearanceScope>()?.notifier?.light ?? false;
+        final theme = _themeFor(context, settings);
+        AppColors.palette = theme?.paletteFor(light: light) ?? AppPalette.kreenFor(light: light);
+        // Every page but Splash and Login has the theme picture behind it
+        // (Login also when it shows for a route without a session).
+        final noPicture = settings.name == Routes.splash ||
+            settings.name == Routes.login ||
+            !SessionScope.read(context).hasJudgeSession;
+        final picture = noPicture ? null : theme?.backgroundUrl ?? _pictureFor(context, settings);
+        final page = Theme(data: buildAppTheme(backgroundPicture: picture != null), child: _resolve(context, settings));
+        return picture == null ? page : ThemedBackground(url: picture, child: page);
       },
       transitionsBuilder: (context, animation, _, child) =>
           FadeTransition(opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut), child: child),
@@ -97,18 +109,39 @@ class JudgeNav {
   static List<Route<dynamic>> onGenerateInitialRoutes(String initialRoute) =>
       [onGenerateRoute(RouteSettings(name: initialRoute))];
 
-  /// Judge Mode pages use their event's theme (Admin Settings, kept on this
-  /// device); Admin, Login, Mode Selector and Splash keep the KREEN palette.
-  static AppPalette _paletteFor(BuildContext context, RouteSettings settings) {
+  /// Judge Mode pages use their round's event theme, Admin pages the open
+  /// event's (chosen, else the event's own) — colours, buttons and
+  /// background picture. Login, Mode Selector, the event list and Splash
+  /// keep KREEN (null).
+  static EventTheme? _themeFor(BuildContext context, RouteSettings settings) {
     final themes = context.getInheritedWidgetOfExactType<JudgeThemeScope>()?.notifier;
-    if (themes == null) return AppPalette.kreen;
+    if (themes == null) return null;
+    if (AdminRoutes.isAdmin(settings.name)) {
+      final admin = context.getInheritedWidgetOfExactType<AdminScope>()?.notifier;
+      final server = admin?.serverSettings;
+      if (admin?.event == null || server == null || settings.name == AdminRoutes.events) return null;
+      final id = server.idTheme ?? server.voteIdTheme ?? EventTheme.defaultId;
+      return themes.themes.where((t) => t.id == id).firstOrNull ??
+          EventTheme.builtIn.where((t) => t.id == id).firstOrNull;
+    }
     final judge = JudgeScope.read(context);
     final args = settings.arguments;
-    if (settings.name == Routes.myRounds) return themes.paletteFor([for (final r in judge.rounds ?? const []) r.eventId]);
+    if (settings.name == Routes.myRounds) return themes.themeForEvents([for (final r in judge.rounds ?? const []) r.eventId]);
     if (args is RoundArgs && !AdminRoutes.isAdmin(settings.name)) {
-      return themes.paletteFor([judge.getRound(args.roundId)?.eventId]);
+      return themes.themeForEvents([judge.getRound(args.roundId)?.eventId]);
     }
-    return AppPalette.kreen;
+    return null;
+  }
+
+  /// Picture of pages without a Judge Mode theme: Admin pages use the open
+  /// event's theme (chosen, else the event's own), the rest the Default one.
+  static String _pictureFor(BuildContext context, RouteSettings settings) {
+    final admin = context.getInheritedWidgetOfExactType<AdminScope>()?.notifier;
+    final server = admin?.serverSettings;
+    final themeId = AdminRoutes.isAdmin(settings.name) && admin?.event != null
+        ? server?.idTheme ?? server?.voteIdTheme ?? EventTheme.defaultId
+        : EventTheme.defaultId;
+    return EventTheme.backgroundUrlFor(themeId);
   }
 
   static Widget _resolve(BuildContext context, RouteSettings settings) {

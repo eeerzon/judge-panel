@@ -11,7 +11,7 @@ import 'round_contestants_screen.dart' show ConfigLockNote, ReadinessSummary;
 
 class AdminRoundJudgesScreen extends StatelessWidget {
   const AdminRoundJudgesScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   Widget build(BuildContext context) {

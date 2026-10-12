@@ -71,7 +71,7 @@ class _MasterScreenState extends State<_MasterScreen> {
     if (c) {
       final rows = admin.contestants
           .where((x) =>
-              (term.isEmpty || '${x.number} ${x.name} ${x.profesi}'.toLowerCase().contains(term)) &&
+              (term.isEmpty || '${x.number} ${x.name} ${x.details}'.toLowerCase().contains(term)) &&
               (_status == 'all' || x.status == _status))
           .toList();
       body = rows.isEmpty
@@ -289,7 +289,10 @@ class _MasterScreenState extends State<_MasterScreen> {
                     final result = await admin.submitJudge(
                       JudgeMaster(
                         id: id,
-                        displayNumber: number.text.trim().isEmpty ? id.toString().padLeft(2, '0') : number.text.trim(),
+                        // Server ids are opaque: never used as the display number.
+                        displayNumber: number.text.trim().isNotEmpty
+                            ? number.text.trim()
+                            : item?.displayNumber ?? id.padLeft(2, '0'),
                         name: name.text.trim().isEmpty ? 'Unnamed judge' : name.text.trim(),
                         email: email.text.trim(),
                         phone: phone.text.trim(),
@@ -369,7 +372,7 @@ class _ContestantCard extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${item.numberLabel} · ${item.name}', style: ts(17, weight: FontWeight.w700, height: 1.3)),
               const SizedBox(height: 6),
-              Text(item.profesi, style: ts(13, color: AppColors.textSecondary, height: 1.35)),
+              if (item.details.isNotEmpty) Text(item.details, style: ts(13, color: AppColors.textSecondary, height: 1.35)),
             ]),
           ),
           Padding(padding: const EdgeInsets.fromLTRB(18, 0, 18, 18), child: _roundChips(rounds)),

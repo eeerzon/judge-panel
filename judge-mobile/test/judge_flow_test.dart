@@ -5,6 +5,8 @@ import 'package:kreen_judge_mobile/main.dart';
 import 'package:kreen_judge_mobile/navigation/judge_nav.dart';
 import 'package:kreen_judge_mobile/state/judge_store.dart';
 import 'package:kreen_judge_mobile/state/session_store.dart';
+import 'package:kreen_judge_mobile/widgets/appearance_toggle.dart';
+import 'package:kreen_judge_mobile/widgets/themed_background.dart';
 import 'package:kreen_judge_mobile/widgets/common.dart' show BackLink;
 
 import 'support/fake_judge_api.dart';
@@ -27,6 +29,10 @@ void main() {
     expect(find.image(const AssetImage('assets/images/KreenOriginal.png')), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
+
+    // Login has no background picture, but has the night / light button.
+    expect(find.byType(ThemedBackground), findsNothing);
+    expect(find.byType(AppearanceIconButton), findsOneWidget);
 
     // Wrong password → server message is shown.
     await tester.enterText(find.byType(TextFormField).at(0), 'juri1.free@test.com');
@@ -64,6 +70,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('0 of 5 criteria scored'), findsOneWidget);
+    // API details: additional name · profession · age, and the bio (clamped).
+    expect(find.text('Yuka Tanaka · Model · 24 yrs'), findsOneWidget);
+    expect(find.text('Read more'), findsOneWidget);
+    await tester.ensureVisible(find.text('Read more'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Read more'));
+    await tester.pumpAndSettle();
+    expect(find.text('#02 · Miss Yuka'), findsOneWidget); // full bio dialog
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
 
     // Manual entry never silent-rounds.
     await tester.tap(find.bySemanticsLabel(RegExp('Edit Communication score')));
@@ -80,7 +96,7 @@ void main() {
 
     await tester.pump(const Duration(seconds: 1)); // debounce → POST score-sheet
     await tester.pumpAndSettle();
-    expect(api.sheet[12]![101], 8.25);
+    expect(api.sheet['rc12']!['cr101'], 8.25);
     expect(find.text('Saved ✓'), findsOneWidget);
     expect(find.text('1 of 5 criteria scored'), findsOneWidget);
 

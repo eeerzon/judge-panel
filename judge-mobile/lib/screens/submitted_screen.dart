@@ -11,7 +11,7 @@ import '../widgets/judge_chrome.dart';
 
 class SubmittedScreen extends StatelessWidget {
   const SubmittedScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   Widget build(BuildContext context) {

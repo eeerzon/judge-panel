@@ -13,7 +13,8 @@ import 'package:http/http.dart' as http;
 /// Override per build: `--dart-define=KREEN_API_BASE_URL=https://.../api/v1`
 const kApiBaseUrl = String.fromEnvironment(
   'KREEN_API_BASE_URL',
-  defaultValue: 'https://newvote.kreenconnect.com/api/v1',
+  // defaultValue: 'https://newvote.kreenconnect.com/api/v1',
+  defaultValue: 'https://vote.kreen.asia/api/v1',
 );
 
 class ApiException implements Exception {

@@ -9,6 +9,7 @@ import '../domain/models.dart';
 import '../navigation/judge_nav.dart';
 import '../state/app_scope.dart';
 import '../theme/tokens.dart';
+import '../widgets/appearance_toggle.dart';
 import '../widgets/common.dart';
 import '../widgets/judge_chrome.dart';
 
@@ -16,7 +17,7 @@ enum _GalleryFilter { all, toScore, scored }
 
 class ContestantsScreen extends StatefulWidget {
   const ContestantsScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   State<ContestantsScreen> createState() => _ContestantsScreenState();
@@ -234,7 +235,7 @@ class _GalleryHeader extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 20,
             runSpacing: 12,
-            children: [...actions, judgeBlock, ConnectionStatusView(state: connection)],
+            children: [...actions, judgeBlock, ConnectionStatusView(state: connection), const AppearanceToggle()],
           ),
         ],
       );
@@ -247,7 +248,7 @@ class _GalleryHeader extends StatelessWidget {
       children: [
         Expanded(flex: 2, child: left),
         const SizedBox(width: 24),
-        Flexible(
+        Expanded(
           flex: 3,
           child: Wrap(
             alignment: WrapAlignment.end,
@@ -257,6 +258,9 @@ class _GalleryHeader extends StatelessWidget {
             children: [...actions, judgeBlock, ConnectionStatusView(state: connection)],
           ),
         ),
+        // Night / light mode at the far right of the header.
+        const SizedBox(width: 20),
+        const AppearanceToggle(),
       ],
     );
   }
@@ -428,6 +432,8 @@ class _ContestantCard extends StatelessWidget {
                         style: ts(18, weight: FontWeight.w600, height: 1.3)),
                     const SizedBox(height: 4),
                     Text(contestant.subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: ts(14, weight: FontWeight.w500, color: AppColors.textSecondary, height: 1.3)),
                     const SizedBox(height: 12),
                     StatusChip(info: info),

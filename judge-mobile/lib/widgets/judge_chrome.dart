@@ -15,7 +15,7 @@ const kShowDevPanel = bool.fromEnvironment('KREEN_DEV_PANEL');
 class JudgeChrome extends StatelessWidget {
   const JudgeChrome({super.key, required this.roundId, required this.child});
 
-  final int roundId;
+  final String roundId;
   final Widget child;
 
   @override
@@ -41,7 +41,7 @@ class OfflineBanner extends StatelessWidget {
       liveRegion: true,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.statusDraftBg,
           border: Border(bottom: BorderSide(color: AppColors.statusDraftBorder)),
         ),
@@ -66,7 +66,7 @@ class OfflineBanner extends StatelessWidget {
 /// — do not restyle it to look like product UI (design-system §6.7).
 class DevPanel extends StatefulWidget {
   const DevPanel({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   State<DevPanel> createState() => _DevPanelState();

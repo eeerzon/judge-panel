@@ -8,6 +8,7 @@ import '../navigation/judge_nav.dart';
 import '../state/app_scope.dart';
 import '../state/judge_store.dart';
 import '../theme/tokens.dart';
+import '../widgets/appearance_toggle.dart';
 import '../widgets/common.dart';
 
 class MyRoundsScreen extends StatefulWidget {
@@ -96,14 +97,24 @@ class _MyRoundsScreenState extends State<MyRoundsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 680),
-                        child: _Header(
-                          accountLabel: judge?.email ?? 'Judge',
-                          name: judge?.name ?? '',
-                          onLogout: () => SessionScope.read(context).logout(),
+                      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 680),
+                              child: _Header(
+                                accountLabel: judge?.email ?? 'Judge',
+                                name: judge?.name ?? '',
+                                onLogout: () => SessionScope.read(context).logout(),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        // Night / light mode at the right edge of the content.
+                        const SizedBox(width: 16),
+                        const AppearanceToggle(),
+                      ]),
                       const SizedBox(height: 34),
                       body,
                     ],
@@ -365,6 +376,8 @@ class _RoundCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final round = model.round;
+    // Each card in its own event's theme (My Rounds may mix events).
+    final palette = JudgeThemeScope.of(context).themeFor(round.eventId)?.paletteFor(light: AppColors.light) ?? AppColors.palette;
     return Container(
       constraints: const BoxConstraints(minHeight: 242),
       padding: const EdgeInsets.all(22),
@@ -380,8 +393,8 @@ class _RoundCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text('${twoDigits(round.id)} · ROUND',
-                    style: ts(11, weight: FontWeight.w700, color: AppColors.accent, letterSpacingEm: 0.14)),
+                child: Text('${twoDigits(round.orderNo)} · ROUND',
+                    style: ts(11, weight: FontWeight.w700, color: palette.accent, letterSpacingEm: 0.14)),
               ),
               const SizedBox(width: 12),
               Text(
@@ -417,6 +430,7 @@ class _RoundCard extends StatelessWidget {
             for (var i = 0; i < model.actions.length; i++) ...[
               if (i > 0) const SizedBox(height: 8),
               AppButton(
+                palette: palette,
                 label: model.actions[i].$2,
                 variant: model.actions[i].$3 ? AppButtonVariant.neutral : AppButtonVariant.primary,
                 expand: true,

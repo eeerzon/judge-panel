@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../navigation/judge_nav.dart';
 import '../../state/app_scope.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/appearance_toggle.dart';
 import '../../widgets/common.dart' show MaxWidth, Pressable;
 import '../admin_nav.dart';
 import '../admin_scope.dart';
@@ -146,6 +147,8 @@ class _ContextBar extends StatelessWidget {
           const SizedBox(width: 9),
           Text(admin.actorRole, style: ts(13, weight: FontWeight.w600, color: AppColors.textSecondary)),
         ],
+        SizedBox(width: compact ? 8 : 14),
+        const AppearanceToggle(),
       ]),
     );
   }
@@ -338,9 +341,11 @@ class _BottomNav extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Color.fromRGBO(27, 18, 21, 0.98),
+        color: AppColors.surface.withValues(alpha: 0.98),
         border: Border(top: BorderSide(color: AppColors.borderStrong)),
-        boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.24), blurRadius: 24, offset: Offset(0, -8))],
+        boxShadow: [
+          BoxShadow(color: Color.fromRGBO(0, 0, 0, AppColors.light ? 0.08 : 0.24), blurRadius: 24, offset: const Offset(0, -8)),
+        ],
       ),
       child: SafeArea(
         top: false,

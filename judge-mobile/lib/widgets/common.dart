@@ -117,7 +117,12 @@ class AppButton extends StatelessWidget {
     this.disabledOpacity = 0.35,
     this.alignment = Alignment.center,
     this.semanticLabel,
+    this.palette,
   });
+
+  /// Colours of another theme than the page's (e.g. a round card of another
+  /// event on My Rounds). Null = the page palette.
+  final AppPalette? palette;
 
   final String label;
   final VoidCallback? onTap;
@@ -137,10 +142,11 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = palette ?? AppColors.palette;
     final (Color bg, Color border, Color fg) = switch (variant) {
-      AppButtonVariant.outline => (Colors.transparent, AppColors.border, AppColors.textPrimary),
-      AppButtonVariant.neutral => (AppColors.surfaceAlt, AppColors.border, AppColors.textPrimary),
-      AppButtonVariant.primary => (AppColors.accentSoft, AppColors.accentDeep, AppColors.textPrimary),
+      AppButtonVariant.outline => (Colors.transparent, p.border, p.textPrimary),
+      AppButtonVariant.neutral => (p.surfaceAlt, p.border, p.textPrimary),
+      AppButtonVariant.primary => (p.accentSoft, p.accentDeep, p.textPrimary),
       AppButtonVariant.ready => (
           AppColors.statusScoredFill,
           AppColors.statusScoredFillBorder,

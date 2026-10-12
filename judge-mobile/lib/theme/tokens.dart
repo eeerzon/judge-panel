@@ -20,11 +20,16 @@ class AppPalette {
     required this.accentBright,
     required this.accentDeep,
     required this.accentSoft,
+    this.textPrimary = const Color(0xFFF6F1E8),
+    this.light = false,
   });
 
   final Color bgBase, surface, surfaceAlt, surfaceRaised, border, borderStrong;
-  final Color textSecondary;
+  final Color textPrimary, textSecondary;
   final Color accent, accentBright, accentDeep, accentSoft;
+
+  /// Light mode palette (night mode = false).
+  final bool light;
 
   // Deep burgundy / wine-black base, not neutral gray; gold/bronze accent
   // scale used sparingly (labels, numbers, active borders).
@@ -42,14 +47,37 @@ class AppPalette {
     accentSoft: Color.fromRGBO(200, 155, 75, 0.14),
   );
 
-  /// The KREEN palette re-tinted to [hue]: backgrounds keep their (very
-  /// dark) saturation/lightness; accents and secondary text keep their
+  /// Light mode: warm ivory page, white cards, dark text; the gold accents
+  /// are darker so they keep their contrast on light surfaces.
+  static const kreenLight = AppPalette(
+    bgBase: Color(0xFFF6F1EA),
+    surface: Color(0xFFFFFFFF),
+    surfaceAlt: Color(0xFFFBF7F2),
+    surfaceRaised: Color(0xFFFFFFFF),
+    border: Color(0xFFE6DCD2),
+    borderStrong: Color(0xFFD3C5B8),
+    textPrimary: Color(0xFF1F1416),
+    textSecondary: Color(0xFF6B5A50),
+    accent: Color(0xFF8C6420),
+    accentBright: Color(0xFF7A5615),
+    accentDeep: Color(0xFFC89B4B),
+    accentSoft: Color.fromRGBO(200, 155, 75, 0.16),
+    light: true,
+  );
+
+  /// The KREEN palette of the mode.
+  static AppPalette kreenFor({required bool light}) => light ? kreenLight : kreen;
+
+  /// The KREEN palette (night or [light]) re-tinted to [hue]: backgrounds
+  /// keep their saturation/lightness; accents and secondary text keep their
   /// perceived brightness, so contrast stays the same on every theme.
-  factory AppPalette.fromHue(double hue) {
+  factory AppPalette.fromHue(double hue, {bool light = false}) {
     Color tint(Color c) => HSLColor.fromColor(c).withHue(hue).toColor().withValues(alpha: c.a);
     Color same(Color c) => _withLuminance(HSLColor.fromColor(c).withHue(hue), c.computeLuminance()).withValues(alpha: c.a);
-    const k = kreen;
+    final k = kreenFor(light: light);
     return AppPalette(
+      textPrimary: k.textPrimary,
+      light: light,
       bgBase: tint(k.bgBase),
       surface: tint(k.surface),
       surfaceAlt: tint(k.surfaceAlt),
@@ -82,9 +110,12 @@ class AppPalette {
 class AppColors {
   AppColors._();
 
-  /// Active palette. Judge Mode routes set it per event theme before they
-  /// build (see JudgeNav); everything else uses [AppPalette.kreen].
+  /// Active palette. Every route sets it before it builds (JudgeNav): the
+  /// event theme in Judge Mode, else KREEN — in night or light mode.
   static AppPalette palette = AppPalette.kreen;
+
+  /// Light mode is on (the palette says so).
+  static bool get light => palette.light;
 
   static Color get bgBase => palette.bgBase;
   static Color get surface => palette.surface;
@@ -93,7 +124,7 @@ class AppColors {
   static Color get border => palette.border;
   static Color get borderStrong => palette.borderStrong;
 
-  static const textPrimary = Color(0xFFF6F1E8);
+  static Color get textPrimary => palette.textPrimary;
   static Color get textSecondary => palette.textSecondary;
 
   static Color get accent => palette.accent;
@@ -103,20 +134,29 @@ class AppColors {
 
   // Scored is the only solid-fill status: it must be spotted at a glance
   // across a full grid. Draft / Not Scored stay muted on purpose. Status
-  // colours never follow an event theme.
+  // colours never follow an event theme; in light mode the text-like ones
+  // are darker for contrast.
   static const statusScoredFill = Color(0xFF1E9E5C);
   static const statusScoredFillBorder = Color(0xFF167A47);
   static const statusScoredText = Color(0xFFF3FFF6);
   static const statusScoredIcon = Color(0xFFC8F7DC);
   static const statusScoredGlow = Color.fromRGBO(30, 158, 92, 0.35);
 
-  static const statusDraftColor = Color(0xFFD9B76B);
-  static const statusDraftBg = Color.fromRGBO(200, 155, 75, 0.14);
-  static const statusDraftBorder = Color.fromRGBO(200, 155, 75, 0.38);
+  /// "Scored / saved" as text on the page (not on the green fill, where
+  /// [statusScoredIcon] is used): pale green at night, deep green in light.
+  static Color get statusScoredOnPage => light ? const Color(0xFF2E7D4F) : statusScoredIcon;
 
-  static const statusErrorColor = Color(0xFFE0897A);
+  /// Card shadow strength: soft at night, very light in light mode.
+  static Color get cardShadow => Color.fromRGBO(0, 0, 0, light ? 0.07 : 0.18);
 
-  static const success = Color(0xFF8FBF9E);
+  static Color get statusDraftColor => light ? const Color(0xFF8A6516) : const Color(0xFFD9B76B);
+  static Color get statusDraftBg => light ? const Color.fromRGBO(200, 155, 75, 0.16) : const Color.fromRGBO(200, 155, 75, 0.14);
+  static Color get statusDraftBorder =>
+      light ? const Color.fromRGBO(160, 120, 50, 0.45) : const Color.fromRGBO(200, 155, 75, 0.38);
+
+  static Color get statusErrorColor => light ? const Color(0xFFB2412C) : const Color(0xFFE0897A);
+
+  static Color get success => light ? const Color(0xFF2E7D4F) : const Color(0xFF8FBF9E);
 
   // Dev-panel only (deliberately looks like a debug tool, not product UI).
   static const devPanelBg = Color.fromRGBO(18, 9, 10, 0.96);
@@ -159,16 +199,19 @@ TextStyle ts(
   );
 }
 
-ThemeData buildAppTheme() {
+/// [backgroundPicture]: the page has a theme picture behind it (Judge Mode,
+/// see ThemedBackground), so scaffolds stay see-through.
+ThemeData buildAppTheme({bool backgroundPicture = false}) {
+  final light = AppColors.light;
   final base = ThemeData(
-    brightness: Brightness.dark,
+    brightness: light ? Brightness.light : Brightness.dark,
     useMaterial3: true,
     fontFamily: kFontFamily,
   );
   return base.copyWith(
-    scaffoldBackgroundColor: AppColors.bgBase,
+    scaffoldBackgroundColor: backgroundPicture ? Colors.transparent : AppColors.bgBase,
     canvasColor: AppColors.bgBase,
-    colorScheme: ColorScheme.dark(
+    colorScheme: (light ? ColorScheme.light : ColorScheme.dark)(
       surface: AppColors.surface,
       primary: AppColors.accent,
       secondary: AppColors.accentBright,

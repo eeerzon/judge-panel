@@ -10,7 +10,7 @@ import '../widgets/round_workspace.dart';
 
 class AdminRoundOverviewScreen extends StatelessWidget {
   const AdminRoundOverviewScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +124,7 @@ class AdminRoundOverviewScreen extends StatelessWidget {
 /// Draft round: advancement / judges / criteria checks + Configure, Copy, Open.
 class _NextRoundSetup extends StatelessWidget {
   const _NextRoundSetup({required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +175,7 @@ class _NextRoundSetup extends StatelessWidget {
     );
   }
 
-  void _copy(BuildContext context, int sourceId, String sourceName) {
+  void _copy(BuildContext context, String sourceId, String sourceName) {
     final admin = AdminScope.read(context);
     var judges = true, criteria = true;
     showAdminModal(

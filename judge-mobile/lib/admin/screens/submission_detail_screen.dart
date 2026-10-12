@@ -15,7 +15,7 @@ import 'round_overview_screen.dart' show GovernancePanel;
 
 class AdminSubmissionScreen extends StatelessWidget {
   const AdminSubmissionScreen({super.key, required this.roundId, required this.judgeId});
-  final int roundId, judgeId;
+  final String roundId, judgeId;
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +139,7 @@ class FactGrid extends StatelessWidget {
 class _ScoreRow extends StatefulWidget {
   const _ScoreRow({required this.store, required this.roundId, required this.judge, required this.contestant, required this.first});
   final AdminStore store;
-  final int roundId;
+  final String roundId;
   final MonitoringJudge judge;
   final ContestantMaster contestant;
   final bool first;
@@ -184,7 +184,7 @@ class _ScoreRowState extends State<_ScoreRow> {
     final title = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('${c.numberLabel} ${c.name}', style: ts(14, weight: FontWeight.w700)),
       const SizedBox(height: 3),
-      Text(c.profesi, style: ts(12, color: AppColors.textSecondary)),
+      if (c.details.isNotEmpty) Text(c.details, style: ts(12, color: AppColors.textSecondary)),
     ]);
     final score = Text.rich(TextSpan(children: [
       TextSpan(text: 'Total Score  ', style: ts(12, color: AppColors.textSecondary)),

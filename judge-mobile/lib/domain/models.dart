@@ -1,9 +1,10 @@
 // Typed domain models for the Judge flow, parsed from the KREEN judge API
 // (`/api/v1/judge/...`). Shapes follow the live responses, which differ a
 // little from the published examples (e.g. `access_token` is a string,
-// contestant identity lives in `finalis`). The login `judge.id` is an int for
-// judges and a string (e.g. "89549734435e2d5d38e1") for owners, so it is kept
-// as a string.
+// contestant identity lives in `finalis`). Every server id — judge, round,
+// round contestant, criterion — is an opaque string (e.g.
+// "cfd10ba1a13a7ebf8cb5"; numbers before 2026-10-09), so ids are Strings.
+
 
 import 'dart:math' as math;
 
@@ -19,6 +20,18 @@ int? _toInt(Object? v) => switch (v) {
       String s => int.tryParse(s),
       _ => null,
     };
+
+/// A server id as a String (opaque hash, or a number from older servers).
+String _id(Object? v) => _toStr(v) ?? '';
+String? _idOrNull(Object? v) => _toStr(v);
+
+/// Secondary line of a contestant: whatever the API has of additional name,
+/// profession and age ("Nama Tambahan 1 · Profesi 1 · 25 yrs").
+String contestantDetails({String? additionalName, String? profession, int? age}) => [
+      ?additionalName,
+      ?profession,
+      if (age != null && age > 0) '$age yrs',
+    ].join(' · ');
 
 DateTime? _toDate(Object? v) => v is String ? DateTime.tryParse(v) : null;
 
@@ -91,7 +104,7 @@ class Round {
     this.createdAt,
   });
 
-  final int id;
+  final String id;
   final String name;
   final RoundStatus status;
   final int orderNo;
@@ -115,7 +128,7 @@ class Round {
   factory Round.fromJson(Map<String, dynamic> j) {
     final vote = j['vote'];
     return Round(
-      id: _toInt(j['id']) ?? 0,
+      id: _id(j['id']),
       name: _toStr(j['name']) ?? 'Round',
       status: RoundStatus.parse(j['status']),
       orderNo: _toInt(j['order_no']) ?? 0,
@@ -155,36 +168,66 @@ class Contestant {
     required this.name,
     this.subtitle = '',
     this.photoUrl,
+    this.additionalName,
+    this.profession,
+    this.age,
+    this.description,
   });
 
   /// `round_contestant_id` — the id used by score-sheet endpoints.
-  final int id;
+  final String id;
   final String finalisId;
   final int number;
   final String name;
 
-  /// Secondary line under the name (profession / additional name).
+  /// Secondary line under the name ([contestantDetails]).
   final String subtitle;
   final String? photoUrl;
+
+  /// `finalis.nama_tambahan`, `profesi`, `usia`, `deskripsi` — each only when
+  /// the API has it. Vote counts are deliberately not kept: judges must not
+  /// be swayed by the public vote.
+  final String? additionalName, profession, description;
+  final int? age;
 
   String get numberLabel => '#${number.toString().padLeft(2, '0')}';
 
   factory Contestant.fromJson(Map<String, dynamic> j) {
     final f = j['finalis'] is Map ? Map<String, dynamic>.from(j['finalis'] as Map) : const <String, dynamic>{};
-    final id = _toInt(j['id']) ?? 0;
+    final id = _id(j['id']);
+    final number = _toInt(f['nomor_urut']) ?? _toInt(j['nomor_urut']) ?? 0;
     return Contestant(
       id: id,
       finalisId: _toStr(j['id_finalis']) ?? _toStr(f['id_finalis']) ?? '',
-      number: _toInt(f['nomor_urut']) ?? id,
-      name: _toStr(f['nama_finalis']) ?? 'Contestant $id',
-      subtitle: _toStr(f['profesi']) ?? _toStr(f['nama_tambahan']) ?? '',
+      number: number,
+      name: _toStr(f['nama_finalis']) ?? 'Contestant ${number == 0 ? '' : number}'.trim(),
+      subtitle: contestantDetails(
+        additionalName: _toStr(f['nama_tambahan']),
+        profession: _toStr(f['profesi']),
+        age: _toInt(f['usia']),
+      ),
       photoUrl: _toStr(f['poster_finalis']),
+      additionalName: _toStr(f['nama_tambahan']),
+      profession: _toStr(f['profesi']),
+      age: _toInt(f['usia']),
+      description: _toStr(f['deskripsi']),
     );
   }
 
   Contestant copyWithName(String? name) => name == null || name.isEmpty
       ? this
-      : Contestant(id: id, finalisId: finalisId, number: number, name: name, subtitle: subtitle, photoUrl: photoUrl);
+      : Contestant(
+          id: id,
+          finalisId: finalisId,
+          number: number,
+          name: name,
+          subtitle: subtitle,
+          photoUrl: photoUrl,
+          additionalName: additionalName,
+          profession: profession,
+          age: age,
+          description: description,
+        );
 }
 
 class Criterion {
@@ -202,14 +245,14 @@ class Criterion {
     this.standalone = false,
   });
 
-  final int id;
+  final String id;
   final String label;
   final String? description;
   final double weight;
   final double min;
   final double max;
   final double step;
-  final int? parentId;
+  final String? parentId;
   final bool isScored;
 
   /// Quick-score presets. Kept only for "Confidence" on a 1–10 scale, like
@@ -219,7 +262,7 @@ class Criterion {
   /// Single criterion without a parent group: only the section heading shows.
   final bool standalone;
 
-  String get key => '$id';
+  String get key => id;
 
   /// Decimals needed to show a value on this criterion's step (8.75 vs 80).
   int get decimals => step == step.roundToDouble() ? 0 : 2;
@@ -232,14 +275,14 @@ class Criterion {
     final step = _toDouble(j['step']) ?? (max <= 10 ? 0.25 : 1);
     final quick = label.toLowerCase() == 'confidence' && max == 10 ? const [7.0, 8.0, 9.0, 10.0] : null;
     return Criterion(
-      id: _toInt(j['id']) ?? 0,
+      id: _id(j['id']),
       label: label,
       description: _toStr(j['description']),
       weight: _toDouble(j['weight']) ?? 0,
       min: min,
       max: math.max(max, min),
       step: step <= 0 ? 1 : step,
-      parentId: _toInt(j['parent_id']),
+      parentId: _idOrNull(j['parent_id']),
       isScored: j['is_scored'] != false,
       quickScore: quick,
     );
@@ -273,7 +316,7 @@ class ScoringSection {
 /// standalone section.
 List<ScoringSection> buildSections(List<Criterion> all) {
   final parentIds = {for (final c in all) if (c.parentId != null) c.parentId!};
-  final sections = <({String heading, int? parentId, List<Criterion> items})>[];
+  final sections = <({String heading, String? parentId, List<Criterion> items})>[];
   for (final c in all) {
     if (parentIds.contains(c.id)) {
       sections.add((heading: c.label, parentId: c.id, items: <Criterion>[]));
@@ -332,28 +375,28 @@ class ScoreSheetRow {
     this.comment,
   });
 
-  final int contestantId;
+  final String contestantId;
   final String? name;
   final String sheetStatus;
 
   /// criterion id → raw score (null = empty)
-  final Map<int, double?> scores;
+  final Map<String, double?> scores;
 
   /// First non-empty per-criterion comment — the app edits one note per contestant.
   final String? comment;
 
   factory ScoreSheetRow.fromJson(Map<String, dynamic> j) {
-    final scores = <int, double?>{};
+    final scores = <String, double?>{};
     String? comment;
     for (final s in (j['scores'] as List? ?? const [])) {
       if (s is! Map) continue;
-      final id = _toInt(s['round_criteria_id']);
+      final id = _idOrNull(s['round_criteria_id']);
       if (id == null) continue;
       scores[id] = _toDouble(s['raw_score']);
       comment ??= _toStr(s['comment']);
     }
     return ScoreSheetRow(
-      contestantId: _toInt(j['round_contestant_id']) ?? 0,
+      contestantId: _id(j['round_contestant_id']),
       name: _toStr(j['nama_finalis']),
       sheetStatus: (_toStr(j['sheet_status']) ?? 'not_started').toLowerCase(),
       scores: scores,
@@ -365,8 +408,8 @@ class ScoreSheetRow {
 /// Body row for `POST .../score-sheet`.
 class ScoreInput {
   const ScoreInput({required this.contestantId, required this.criterionId, required this.rawScore, this.comment});
-  final int contestantId;
-  final int criterionId;
+  final String contestantId;
+  final String criterionId;
   final double? rawScore;
   final String? comment;
 
@@ -407,7 +450,11 @@ class ResultItem {
       tied: j['tied'] == true || j['is_tied'] == true,
       number: _toInt(j['nomor_urut']) ?? _toInt(f['nomor_urut']) ?? 0,
       name: _toStr(j['nama_finalis']) ?? _toStr(f['nama_finalis']) ?? '',
-      subtitle: _toStr(j['profesi']) ?? _toStr(f['profesi']) ?? '',
+      subtitle: contestantDetails(
+        additionalName: _toStr(j['nama_tambahan']) ?? _toStr(f['nama_tambahan']),
+        profession: _toStr(j['profesi']) ?? _toStr(f['profesi']),
+        age: _toInt(j['usia']) ?? _toInt(f['usia']),
+      ),
       combinedScore: _toDouble(j['combined_score']) ??
           _toDouble(j['avg_score']) ??
           _toDouble(j['score']) ??

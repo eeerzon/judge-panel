@@ -10,6 +10,10 @@ DateTime? _date(Object? v) => v is String ? DateTime.tryParse(v) : null;
 double _num(Object? v, [double fallback = 0]) => v is num ? v.toDouble() : double.tryParse('$v') ?? fallback;
 
 int _int(Object? v, [int fallback = 0]) => v is num ? v.toInt() : int.tryParse('$v') ?? fallback;
+
+/// A server id: an opaque string since 2026-10-09 (e.g. "bf853c108eed58075240").
+String _sid(Object? v) => v == null ? '' : '$v'.trim();
+String? _sidOrNull(Object? v) => v == null || '$v'.trim().isEmpty ? null : '$v'.trim();
 /// Server timestamp: ISO with a zone as given; a zone-less one
 /// (`2026-10-01 08:40:49`, Laravel default) is WIB (UTC+7).
 DateTime? _serverTime(Object? v) {
@@ -37,7 +41,7 @@ class AdminRound {
     this.finalizedAt,
     this.tieAcknowledgedAt,
   });
-  final int id;
+  final String id;
   final int order;
   final String name;
   String status; // draft | open | closed | finalized
@@ -52,7 +56,7 @@ class AdminRound {
 
   /// `GET /judge/admin/events/{idVote}/rounds` item.
   factory AdminRound.fromApi(Map<String, dynamic> j) => AdminRound(
-        id: _int(j['id']),
+        id: _sid(j['id']),
         order: _int(j['order_no'], 1),
         name: _text(j['name']) ?? 'Round',
         status: switch (j['status']) { 'open' || 'closed' || 'finalized' => j['status'] as String, _ => 'draft' },
@@ -233,13 +237,29 @@ class ContestantMaster {
     this.photo = '',
     this.status = 'active',
     this.externalId,
+    this.additionalName,
+    this.age,
   });
   final int id;
   int number;
 
-  /// [profesi] is the card's secondary line; for API contestants it holds
-  /// `profesi` (fallback `nama_tambahan`).
+  /// `nama_finalis`, `profesi`.
   String name, profesi;
+
+  /// `nama_tambahan`, `usia` — null when the API has none. (Vote counts are
+  /// not shown in judging.)
+  String? additionalName;
+  int? age;
+
+  /// Card secondary line: additional name · profession · age (what exists).
+  String get details {
+    final parts = [
+      ?additionalName,
+      if (profesi.trim().isNotEmpty) profesi,
+      if (age != null && age! > 0) '$age yrs',
+    ];
+    return parts.join(' · ');
+  }
 
   /// `id_finalis` for contestants that come from the API; null = local only.
   final String? externalId;
@@ -252,7 +272,17 @@ class ContestantMaster {
   String get numberLabel => '#${number.toString().padLeft(2, '0')}';
 
   Map<String, dynamic> toJson() =>
-      {'id': id, 'number': number, 'name': name, 'profesi': profesi, 'photo': photo, 'status': status, 'externalId': externalId};
+      {
+        'id': id,
+        'number': number,
+        'name': name,
+        'profesi': profesi,
+        'photo': photo,
+        'status': status,
+        'externalId': externalId,
+        'additionalName': additionalName,
+        'age': age,
+      };
   factory ContestantMaster.fromJson(Map<String, dynamic> j) => ContestantMaster(
         id: (j['id'] as num).toInt(),
         number: (j['number'] as num).toInt(),
@@ -261,6 +291,8 @@ class ContestantMaster {
         photo: j['photo'] as String? ?? '',
         status: j['status'] as String? ?? 'active',
         externalId: j['externalId'] as String?,
+        additionalName: j['additionalName'] as String?,
+        age: (j['age'] as num?)?.toInt(),
       );
 
   /// `GET /judge/admin/contestants` item. [id] is the app's local id (the
@@ -270,8 +302,10 @@ class ContestantMaster {
         externalId: '${j['id_finalis']}',
         number: _int(j['nomor_urut'], id),
         name: _text(j['nama_finalis']) ?? 'Finalist',
-        profesi: _text(j['profesi']) ?? _text(j['nama_tambahan']) ?? '',
+        profesi: _text(j['profesi']) ?? '',
         photo: _text(j['poster_finalis']) ?? '',
+        additionalName: _text(j['nama_tambahan']),
+        age: j['usia'] == null ? null : _int(j['usia']),
       );
 }
 
@@ -285,7 +319,7 @@ class JudgeMaster {
     this.status = 'active',
     this.roles = const [],
   });
-  final int id;
+  final String id;
 
   /// [displayNumber] is app-only (the API has no judge number).
   String displayNumber, name, email, phone, status;
@@ -298,7 +332,7 @@ class JudgeMaster {
 
   /// `GET /judge/admin/judges` item.
   factory JudgeMaster.fromApi(Map<String, dynamic> j, {required String displayNumber}) => JudgeMaster(
-        id: _int(j['id']),
+        id: _sid(j['id']),
         displayNumber: displayNumber,
         name: _text(j['name']) ?? 'Unnamed judge',
         email: _text(j['email']) ?? '',
@@ -321,7 +355,7 @@ class JudgeMaster {
         'roles': roles,
       };
   factory JudgeMaster.fromJson(Map<String, dynamic> j) => JudgeMaster(
-        id: (j['id'] as num).toInt(),
+        id: _sid(j['id']),
         displayNumber: j['displayNumber'] as String? ?? '',
         name: j['name'] as String? ?? '',
         email: j['email'] as String? ?? '',
@@ -340,7 +374,7 @@ class JudgeAssignment {
     this.excuseReason,
     this.excusedAt,
   });
-  final int judgeId, roundId;
+  final String judgeId, roundId;
   bool required;
   String status; // assigned | excused | removed | unassigned
   String? excuseReason;
@@ -355,8 +389,8 @@ class JudgeAssignment {
         'excusedAt': excusedAt?.toIso8601String(),
       };
   factory JudgeAssignment.fromJson(Map<String, dynamic> j) => JudgeAssignment(
-        judgeId: (j['judgeId'] as num).toInt(),
-        roundId: (j['roundId'] as num).toInt(),
+        judgeId: _sid(j['judgeId']),
+        roundId: _sid(j['roundId']),
         required: j['required'] as bool? ?? true,
         status: j['assignmentStatus'] as String? ?? 'assigned',
         excuseReason: j['excuseReason'] as String?,
@@ -381,7 +415,7 @@ class AdminCriterion {
     this.description = '',
   });
   final String id;
-  int roundId;
+  String roundId;
   String name;
 
   /// API `description` (not edited in the prototype form).
@@ -391,7 +425,7 @@ class AdminCriterion {
   bool required, isScored, isParent;
   int sequence;
 
-  AdminCriterion copy({int? roundId}) => AdminCriterion(
+  AdminCriterion copy({String? roundId}) => AdminCriterion(
         id: id,
         roundId: roundId ?? this.roundId,
         name: name,
@@ -424,7 +458,7 @@ class AdminCriterion {
       };
   factory AdminCriterion.fromJson(Map<String, dynamic> j) => AdminCriterion(
         id: '${j['id']}',
-        roundId: (j['roundId'] as num).toInt(),
+        roundId: _sid(j['roundId']),
         name: j['name'] as String? ?? '',
         parentId: j['parentId'] as String?,
         weight: _num(j['weight']),
@@ -456,7 +490,7 @@ class MonitoringJudge {
     required this.assignmentStatus,
     this.submittedAt,
   });
-  final int id;
+  final String id;
   final String number, name, email, phone;
   final int completed, total;
   final String submissionStatus; // not-started | in-progress | submitted | reopened | resubmitted | excused | removed
@@ -514,7 +548,7 @@ class ReopenRecord {
     this.originalSubmittedAt,
     this.resubmittedAt,
   });
-  final int judgeId, roundId;
+  final String judgeId, roundId;
   final String reason, reopenedBy;
   final DateTime reopenedAt;
   final DateTime? originalSubmittedAt;
@@ -530,8 +564,8 @@ class ReopenRecord {
         'resubmittedAt': resubmittedAt?.toIso8601String(),
       };
   factory ReopenRecord.fromJson(Map<String, dynamic> j) => ReopenRecord(
-        judgeId: (j['judgeId'] as num).toInt(),
-        roundId: (j['roundId'] as num).toInt(),
+        judgeId: _sid(j['judgeId']),
+        roundId: _sid(j['roundId']),
         reason: j['reason'] as String? ?? '',
         reopenedAt: _date(j['reopenedAt']) ?? DateTime.now(),
         reopenedBy: j['reopenedBy'] as String? ?? 'Super Admin',
@@ -543,7 +577,7 @@ class ReopenRecord {
 class AuditEvent {
   const AuditEvent({required this.type, required this.at, required this.actor, this.roundId, this.judgeId, this.reason = ''});
   final String type;
-  final int? roundId, judgeId;
+  final String? roundId, judgeId;
   final String reason, actor;
   final DateTime at;
 
@@ -557,8 +591,8 @@ class AuditEvent {
       };
   factory AuditEvent.fromJson(Map<String, dynamic> j) => AuditEvent(
         type: j['type'] as String? ?? '',
-        roundId: (j['roundId'] as num?)?.toInt(),
-        judgeId: (j['judgeId'] as num?)?.toInt(),
+        roundId: _sidOrNull(j['roundId']),
+        judgeId: _sidOrNull(j['judgeId']),
         reason: j['reason'] as String? ?? '',
         at: _date(j['at']) ?? DateTime.now(),
         actor: j['actor'] as String? ?? 'Super Admin',
@@ -574,10 +608,16 @@ class JudgeScoreEntry {
     required this.included,
     required this.exclusion,
     required this.criteriaScores,
+    this.rawTotal,
   });
-  final int judgeId;
+  final String judgeId;
   final String judgeNumber, judgeName, exclusion;
+
+  /// Weighted total on the 0–100 scale (Σ raw ÷ max × weight).
   final double? total;
+
+  /// Raw total: Σ raw scores of the scored criteria (e.g. 880 of 1000).
+  final double? rawTotal;
   final bool included;
   final Map<String, double> criteriaScores;
 
@@ -589,9 +629,10 @@ class JudgeScoreEntry {
         'included': included,
         'exclusion': exclusion,
         'criteriaScores': criteriaScores,
+        'rawTotal': rawTotal,
       };
   factory JudgeScoreEntry.fromJson(Map<String, dynamic> j) => JudgeScoreEntry(
-        judgeId: (j['judgeId'] as num).toInt(),
+        judgeId: _sid(j['judgeId']),
         judgeNumber: j['judgeNumber'] as String? ?? '',
         judgeName: j['judgeName'] as String? ?? '',
         total: (j['total'] as num?)?.toDouble(),
@@ -600,6 +641,7 @@ class JudgeScoreEntry {
         criteriaScores: {
           for (final e in ((j['criteriaScores'] as Map?) ?? {}).entries) '${e.key}': (e.value as num).toDouble(),
         },
+        rawTotal: (j['rawTotal'] as num?)?.toDouble(),
       );
 }
 
@@ -615,10 +657,17 @@ class ResultItem {
     required this.judgeScores,
     this.rank = 0,
     this.tied = false,
+    this.rawScore,
   });
   final int contestantId, number, eligibleJudgeCount;
   final String name, profesi, photo;
+
+  /// Final score on the 0–100 scale (server `avg_score`).
   final double combinedScore;
+
+  /// Raw final score: average over the counted judges of their raw totals.
+  /// Null until the per-judge detail is loaded (AdminStore.loadRawScores).
+  double? rawScore;
   final List<JudgeScoreEntry> judgeScores;
   int rank;
   bool tied;
@@ -636,6 +685,7 @@ class ResultItem {
         'judgeScores': [for (final s in judgeScores) s.toJson()],
         'rank': rank,
         'tied': tied,
+        'rawScore': rawScore,
       };
   factory ResultItem.fromJson(Map<String, dynamic> j) => ResultItem(
         contestantId: (j['contestantId'] as num).toInt(),
@@ -650,6 +700,7 @@ class ResultItem {
         ],
         rank: (j['rank'] as num?)?.toInt() ?? 0,
         tied: j['tied'] as bool? ?? false,
+        rawScore: (j['rawScore'] as num?)?.toDouble(),
       );
 }
 
@@ -657,7 +708,7 @@ class RoundResult {
   const RoundResult.unavailable(this.reason)
       : available = false,
         finalized = false,
-        roundId = 0,
+        roundId = '',
         eligibleJudgeIds = const [],
         contestantCount = 0,
         items = const [],
@@ -677,8 +728,9 @@ class RoundResult {
 
   final bool available, finalized;
   final String reason;
-  final int roundId, contestantCount;
-  final List<int> eligibleJudgeIds;
+  final String roundId;
+  final int contestantCount;
+  final List<String> eligibleJudgeIds;
   final List<ResultItem> items;
   final DateTime? finalizedAt;
   final String? finalizedBy;
@@ -695,8 +747,8 @@ class RoundResult {
         'finalizedBy': finalizedBy,
       };
   factory RoundResult.snapshotFromJson(Map<String, dynamic> j) => RoundResult(
-        roundId: (j['roundId'] as num).toInt(),
-        eligibleJudgeIds: [for (final i in (j['eligibleJudgeIds'] as List? ?? const [])) (i as num).toInt()],
+        roundId: _sid(j['roundId']),
+        eligibleJudgeIds: [for (final i in (j['eligibleJudgeIds'] as List? ?? const [])) _sid(i)],
         contestantCount: (j['contestantCount'] as num?)?.toInt() ?? 0,
         items: [for (final i in (j['items'] as List? ?? const [])) ResultItem.fromJson(Map<String, dynamic>.from(i as Map))],
         finalized: true,
@@ -732,7 +784,7 @@ class Advancement {
     required this.confirmedAt,
     List<AdvancementAdjustment>? adjustments,
   }) : adjustments = adjustments ?? [];
-  final int sourceRoundId, targetRoundId;
+  final String sourceRoundId, targetRoundId;
   final List<int> selectedContestantIds;
   final String snapshotId, method, reason, confirmedBy;
   final DateTime confirmedAt;
@@ -750,8 +802,8 @@ class Advancement {
         'adjustments': [for (final a in adjustments) a.toJson()],
       };
   factory Advancement.fromJson(Map<String, dynamic> j) => Advancement(
-        sourceRoundId: (j['sourceRoundId'] as num).toInt(),
-        targetRoundId: (j['targetRoundId'] as num).toInt(),
+        sourceRoundId: _sid(j['sourceRoundId']),
+        targetRoundId: _sid(j['targetRoundId']),
         selectedContestantIds: [for (final i in (j['selectedContestantIds'] as List? ?? const [])) (i as num).toInt()],
         snapshotId: j['snapshotId'] as String? ?? '',
         method: j['method'] as String? ?? 'top_n',
@@ -799,7 +851,7 @@ class AdvancementInfo {
   /// Newest `history[]` entry of type `confirmed`.
   final ({String method, String reason, String actor, DateTime? at})? lastConfirmed;
   final String? blockingReason;
-  final int? targetRoundId;
+  final String? targetRoundId;
   final List<int> suggestedIds, currentIds;
 
   /// Favourite-vote contestant the server offers on top of Top N (local id).
@@ -811,16 +863,16 @@ class AdvancementInfo {
   /// ([contestantOfFinalis]).
   factory AdvancementInfo.fromApi(
     Map<String, dynamic> j, {
-    required int? Function(int roundContestantId) contestantOf,
+    required int? Function(String roundContestantId) contestantOf,
     required int? Function(String idFinalis) contestantOfFinalis,
   }) {
     int? one(Object? e) {
       if (e is Map) {
         final ext = _text(e['id_finalis']) ?? (e['finalis'] is Map ? _text((e['finalis'] as Map)['id_finalis']) : null);
         if (ext != null) return contestantOfFinalis(ext);
-        return contestantOf(_int(e['round_contestant_id'] ?? e['id']));
+        return contestantOf(_sid(e['round_contestant_id'] ?? e['id']));
       }
-      return contestantOf(_int(e));
+      return contestantOf(_sid(e));
     }
 
     List<int> ids(Object? raw) => [
@@ -850,13 +902,14 @@ class AdvancementInfo {
             ),
       canConfirm: j['can_confirm'] == true,
       blockingReason: _text(j['blocking_reason']),
-      targetRoundId: target is Map && target['id'] != null ? _int(target['id']) : null,
+      targetRoundId: target is Map ? _sidOrNull(target['id']) : null,
       suggestedIds: ids(j['suggested_contestant_ids']),
       currentIds: ids(j['current']),
       cutoffTie: j['cutoff_tie'] == true,
       favoritCandidateId: switch (j['favorit_candidate']) {
-        Map m => contestantOf(_int(m['round_contestant_id'] ?? m['id'])),
-        num n => contestantOf(n.toInt()),
+        Map m => contestantOf(_sid(m['round_contestant_id'] ?? m['id'])),
+        String s when s.isNotEmpty => contestantOf(s),
+        num n => contestantOf('$n'),
         _ => null,
       },
       targetFavoritEnabled: target is Map && target['favorit_promote_enabled'] == true,

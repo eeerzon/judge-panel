@@ -13,15 +13,22 @@ import '../../widgets/common.dart' show Pressable, Dot;
 /// Admin-only surfaces that the CSS hard-codes next to the tokens.
 class AdminColors {
   AdminColors._();
-  static const sidebar = Color(0xFF160C0E);
-  static const navIcon = Color(0xFFB69B75);
-  static const navDisabled = Color(0xFF9D9087);
-  static const contextBar = Color.fromRGBO(27, 18, 21, 0.78);
-  static const successTint = Color.fromRGBO(143, 191, 158, 0.12);
-  static const successBorder = Color.fromRGBO(143, 191, 158, 0.45);
-  static const errorTint = Color.fromRGBO(224, 137, 122, 0.10);
-  static const errorBorder = Color.fromRGBO(224, 137, 122, 0.50);
-  static const modalBarrier = Color.fromRGBO(8, 4, 4, 0.72);
+  // Night mode values first, light mode second (AppColors.light).
+  static Color get sidebar => AppColors.light ? const Color(0xFFFBF7F2) : const Color(0xFF160C0E);
+  static Color get navIcon => AppColors.light ? const Color(0xFF8C6A3F) : const Color(0xFFB69B75);
+  static Color get navDisabled => AppColors.light ? const Color(0xFFA39488) : const Color(0xFF9D9087);
+  static Color get contextBar =>
+      AppColors.light ? const Color.fromRGBO(255, 255, 255, 0.82) : const Color.fromRGBO(27, 18, 21, 0.78);
+  static Color get successTint =>
+      AppColors.light ? const Color.fromRGBO(46, 125, 79, 0.10) : const Color.fromRGBO(143, 191, 158, 0.12);
+  static Color get successBorder =>
+      AppColors.light ? const Color.fromRGBO(46, 125, 79, 0.40) : const Color.fromRGBO(143, 191, 158, 0.45);
+  static Color get errorTint =>
+      AppColors.light ? const Color.fromRGBO(178, 65, 44, 0.08) : const Color.fromRGBO(224, 137, 122, 0.10);
+  static Color get errorBorder =>
+      AppColors.light ? const Color.fromRGBO(178, 65, 44, 0.45) : const Color.fromRGBO(224, 137, 122, 0.50);
+  static Color get modalBarrier =>
+      AppColors.light ? const Color.fromRGBO(30, 20, 20, 0.40) : const Color.fromRGBO(8, 4, 4, 0.72);
 }
 
 /// Breakpoints from admin.css (viewport-based, like the CSS media queries).
@@ -71,14 +78,16 @@ const _iconPaths = {
 };
 
 class AdminIcon extends StatelessWidget {
-  const AdminIcon(this.name, {super.key, this.size = 20, this.color = AdminColors.navIcon});
+  const AdminIcon(this.name, {super.key, this.size = 20, this.color});
   final String name;
   final double size;
-  final Color color;
+
+  /// Defaults to [AdminColors.navIcon].
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    final hex = '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
+    final hex = '#${((color ?? AdminColors.navIcon).toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
     final svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="$hex" '
         'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" color="$hex">'
         '${(_iconPaths[name] ?? _iconPaths['more']!).replaceAll('currentColor', hex)}</svg>';
@@ -265,8 +274,8 @@ class AdminReadyChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ready
-      ? const _Chip(bg: AdminColors.successTint, border: AdminColors.successBorder, fg: AppColors.success, text: 'Ready', dot: false)
-      : const _Chip(
+      ? _Chip(bg: AdminColors.successTint, border: AdminColors.successBorder, fg: AppColors.success, text: 'Ready', dot: false)
+      : _Chip(
           bg: AppColors.statusDraftBg, border: AppColors.statusDraftBorder, fg: AppColors.statusDraftColor, text: 'Review', dot: false);
 }
 
@@ -585,10 +594,12 @@ class AdminWarning extends StatelessWidget {
 
 /// Inline text link inside notes/warnings.
 class AdminLink extends StatelessWidget {
-  const AdminLink(this.text, {super.key, required this.onTap, this.color = AppColors.textPrimary});
+  const AdminLink(this.text, {super.key, required this.onTap, this.color});
   final String text;
   final VoidCallback onTap;
-  final Color color;
+
+  /// Defaults to [AppColors.textPrimary].
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -596,7 +607,8 @@ class AdminLink extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Text(text,
-              style: ts(13, weight: FontWeight.w700, color: color).copyWith(decoration: TextDecoration.underline, decorationColor: color)),
+              style: ts(13, weight: FontWeight.w700, color: color ?? AppColors.textPrimary)
+                  .copyWith(decoration: TextDecoration.underline, decorationColor: color ?? AppColors.textPrimary)),
         ),
       );
 }

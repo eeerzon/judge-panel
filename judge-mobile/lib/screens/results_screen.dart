@@ -15,7 +15,7 @@ import '../widgets/common.dart';
 
 class ResultsScreen extends StatefulWidget {
   const ResultsScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   State<ResultsScreen> createState() => _ResultsScreenState();

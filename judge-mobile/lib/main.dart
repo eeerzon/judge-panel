@@ -11,6 +11,7 @@ import 'navigation/judge_nav.dart';
 import 'state/app_scope.dart';
 import 'state/judge_store.dart';
 import 'state/session_store.dart';
+import 'theme/appearance.dart';
 import 'theme/judge_theme.dart';
 import 'theme/tokens.dart';
 
@@ -37,14 +38,15 @@ Future<void> main() async {
   final judge = await JudgeStore.create(api);
   final admin = await AdminStore.load(api: HttpAdminApi(client));
   final themes = await JudgeThemeStore.load();
+  final appearance = await AppearanceStore.load();
   client
     ..tokenProvider = (() => session.token)
     ..onUnauthorized = session.handleUnauthorized;
-  runApp(KreenJudgeApp(judge: judge, session: session, admin: admin, themes: themes));
+  runApp(KreenJudgeApp(judge: judge, session: session, admin: admin, themes: themes, appearance: appearance));
 }
 
 class KreenJudgeApp extends StatefulWidget {
-  KreenJudgeApp({super.key, required this.judge, required this.session, AdminStore? admin, this.themes})
+  KreenJudgeApp({super.key, required this.judge, required this.session, AdminStore? admin, this.themes, this.appearance})
       : admin = admin ?? AdminStore.memory();
 
   final JudgeStore judge;
@@ -56,12 +58,17 @@ class KreenJudgeApp extends StatefulWidget {
   /// Judge Mode theme per event (Admin Settings).
   final JudgeThemeStore? themes;
 
+  /// Night / light mode (night when omitted).
+  final AppearanceStore? appearance;
+
   @override
   State<KreenJudgeApp> createState() => _KreenJudgeAppState();
 }
 
 class _KreenJudgeAppState extends State<KreenJudgeApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
+  final _routes = _CurrentRoute();
+  late final AppearanceStore _appearance = widget.appearance ?? AppearanceStore();
   late bool _signedIn;
 
   /// How long "Session expired" stays up before Login opens.
@@ -77,11 +84,35 @@ class _KreenJudgeAppState extends State<KreenJudgeApp> {
     widget.judge.bindJudge(widget.session.judge?.id);
     _syncAdminActor();
     widget.session.addListener(_onSessionChanged);
+    _appearance.addListener(_onAppearanceChanged);
+    AppColors.palette = AppPalette.kreenFor(light: _appearance.light);
+    _applySystemBars();
   }
+
+  /// Colours are read when a page builds: re-open the current page in the
+  /// new mode (every navigation replaces the page, so nothing stacks).
+  void _onAppearanceChanged() {
+    // Root theme (dialogs) follows at once; the page sets its own palette.
+    AppColors.palette = AppPalette.kreenFor(light: _appearance.light);
+    setState(() {});
+    _applySystemBars();
+    final current = _routes.current;
+    if (current?.name == null) return;
+    _navigatorKey.currentState?.pushReplacementNamed(current!.name!, arguments: current.arguments);
+  }
+
+  void _applySystemBars() => SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: _appearance.light ? Brightness.dark : Brightness.light,
+        statusBarBrightness: _appearance.light ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: AppPalette.kreenFor(light: _appearance.light).bgBase,
+        systemNavigationBarIconBrightness: _appearance.light ? Brightness.dark : Brightness.light,
+      ));
 
   @override
   void dispose() {
     widget.session.removeListener(_onSessionChanged);
+    _appearance.removeListener(_onAppearanceChanged);
     super.dispose();
   }
 
@@ -145,9 +176,11 @@ class _KreenJudgeAppState extends State<KreenJudgeApp> {
       session: widget.session,
       admin: widget.admin,
       themes: widget.themes,
+      appearance: _appearance,
       child: MaterialApp(
         title: 'KREEN Judge',
         navigatorKey: _navigatorKey,
+        navigatorObservers: [_routes],
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
         themeMode: ThemeMode.dark,
@@ -211,4 +244,22 @@ class _SessionExpiredDialog extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// Tracks the page on screen (to re-open it when the mode changes).
+class _CurrentRoute extends NavigatorObserver {
+  RouteSettings? current;
+
+  void _set(Route<dynamic>? route) {
+    if (route is PageRoute) current = route.settings;
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) => _set(route);
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) => _set(newRoute);
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) => _set(previousRoute);
 }

@@ -7,6 +7,7 @@ import '../../state/app_scope.dart';
 import '../../theme/judge_theme.dart';
 import '../../theme/tokens.dart';
 import '../admin_models.dart';
+import '../admin_nav.dart';
 import '../admin_scope.dart';
 import '../widgets/admin_shell.dart';
 import '../widgets/admin_ui.dart';
@@ -265,7 +266,7 @@ class _State extends State<AdminSettingsScreen> {
             padding: EdgeInsets.all(tiny ? 18 : 24),
             borderColor: const Color.fromRGBO(224, 137, 122, 0.45),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const AdminEyebrow('Prototype only', color: AppColors.statusErrorColor),
+              AdminEyebrow('Prototype only', color: AppColors.statusErrorColor),
               const SizedBox(height: 7),
               Text('Danger Zone', style: ts(19, weight: FontWeight.w700, height: 1.3)),
               const SizedBox(height: 7),
@@ -320,7 +321,7 @@ class _Divided extends StatelessWidget {
 
 /// 06 / Interface — Judge Mode theme of this event (`id_theme` in the
 /// event settings). Saved to the server at once; every judge tablet gets it
-/// with `/judge/rounds`. Admin Mode keeps the KREEN palette.
+/// with `/judge/rounds`; the event's Admin pages use it as well.
 class _JudgeThemePanel extends StatefulWidget {
   const _JudgeThemePanel();
 
@@ -337,7 +338,7 @@ class _JudgeThemePanelState extends State<_JudgeThemePanel> {
     final themes = JudgeThemeScope.read(context);
     final current = admin.serverSettings, eventId = admin.event?.id;
     if (current == null || eventId == null || _saving != null) return;
-    if ((current.idTheme ?? EventTheme.kreenId) == theme.id) return;
+    if ((current.idTheme ?? current.voteIdTheme ?? EventTheme.defaultId) == theme.id) return;
     setState(() {
       _saving = theme.id;
       _error = null;
@@ -345,7 +346,12 @@ class _JudgeThemePanelState extends State<_JudgeThemePanel> {
     final error = await admin.saveServerSettings(current.copyWith(idTheme: theme.id));
     if (!mounted) return;
     // This device switches at once, even before Judge Mode reloads its rounds.
-    if (error == null) themes.remember(eventId, theme.isKreen ? null : theme);
+    if (error == null) {
+      themes.remember(eventId, theme);
+      // Admin pages follow the event theme too: re-open Settings in it.
+      AdminNav.go(context, AdminRoutes.settings);
+      return;
+    }
     setState(() {
       _saving = null;
       _error = error;
@@ -357,12 +363,14 @@ class _JudgeThemePanelState extends State<_JudgeThemePanel> {
     final store = JudgeThemeScope.of(context);
     final settings = AdminScope.of(context).serverSettings;
     // Nothing chosen yet = the KREEN default (id 0).
-    final selected = settings?.idTheme ?? EventTheme.kreenId;
+    // Nothing chosen yet: Judge Mode uses the vote's own theme (as the API).
+    final selected = settings?.idTheme ?? settings?.voteIdTheme ?? EventTheme.defaultId;
     return _SettingsPanel(
       eyebrow: '06 / Interface',
       title: 'Judge Mode Theme',
       description: 'Background and accent colours of Judge Mode on every judge tablet for this event. '
-          'Status colours (Scored, Draft, errors) never change, and Admin Mode keeps the KREEN theme.',
+          'Status colours (Scored, Draft, errors) never change. Admin pages of this event use it too. '
+          'Until a theme is chosen here, Judge Mode uses the event’s own theme.',
       children: [
         if (settings == null)
           Text('Theme settings could not be loaded. Refresh the event and try again.',
@@ -374,8 +382,8 @@ class _JudgeThemePanelState extends State<_JudgeThemePanel> {
                 name: t.name,
                 caption: _saving == t.id
                     ? 'Saving…'
-                    : t.isKreen
-                        ? 'Default'
+                    : t.id == settings.voteIdTheme
+                        ? 'Event theme' // used until one is chosen here
                         : null,
                 palette: t.palette,
                 selected: selected == t.id,

@@ -18,7 +18,7 @@ enum _ReviewFilter { all, attention, scored }
 
 class ReviewScreen extends StatefulWidget {
   const ReviewScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   State<ReviewScreen> createState() => _ReviewScreenState();
@@ -27,7 +27,7 @@ class ReviewScreen extends StatefulWidget {
 class _ReviewScreenState extends State<ReviewScreen> {
   _ReviewFilter _filter = _ReviewFilter.all;
 
-  int get _roundId => widget.roundId;
+  String get _roundId => widget.roundId;
 
   @override
   void initState() {
@@ -216,7 +216,7 @@ class _SummaryPanel extends StatelessWidget {
           Text('${counts.scored} / ${counts.total} contestants scored',
               style: ts(20,
                   weight: FontWeight.w700,
-                  color: ready ? AppColors.statusScoredIcon : AppColors.textPrimary,
+                  color: ready ? AppColors.statusScoredOnPage : AppColors.textPrimary,
                   tabular: true)),
           const SizedBox(height: 10),
           ClipRRect(

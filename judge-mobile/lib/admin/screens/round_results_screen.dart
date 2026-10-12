@@ -15,7 +15,7 @@ import '../widgets/round_workspace.dart';
 
 class AdminRoundResultsScreen extends StatelessWidget {
   const AdminRoundResultsScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +42,12 @@ class AdminRoundResultsScreen extends StatelessWidget {
     }
 
     if (!result.finalized) admin.noteResultsCalculated(roundId);
+    final percent = admin.resultsAsPercent;
+    if (!percent && result.items.any((i) => i.rawScore == null) && !admin.isLoadingRawScores(roundId)) {
+      // Raw view opened (or kept from an earlier page): load the per-judge detail.
+      WidgetsBinding.instance.addPostFrameCallback((_) => admin.loadRawScores(roundId));
+    }
+    final rawMax = admin.rawMaxScore(roundId);
     final finalized = result.finalized;
     final tieBlocked = result.hasTie && !admin.isTieAcknowledged(roundId);
     final narrow = AdminLayout.narrow(context);
@@ -79,7 +85,9 @@ class AdminRoundResultsScreen extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+        ResultScaleToggle(roundId: roundId),
+        const SizedBox(height: 16),
         AdminStatGrid([
           AdminStatCard(value: '${result.contestantCount}', label: 'Contestants'),
           AdminStatCard(value: '${result.eligibleJudgeCount}', label: 'Eligible Judges'),
@@ -109,6 +117,9 @@ class AdminRoundResultsScreen extends StatelessWidget {
             for (final item in result.items)
               ResultRow(
                 item: item,
+                percent: percent,
+                rawMax: rawMax,
+                loadingRaw: admin.isLoadingRawScores(roundId),
                 onDetail: () => AdminNav.round(context, AdminRoutes.resultDetail, roundId, contestantId: item.contestantId),
               ),
           ],
@@ -132,9 +143,14 @@ class AdminRoundResultsScreen extends StatelessWidget {
 
 /// `.admin-result-row`
 class ResultRow extends StatelessWidget {
-  const ResultRow({super.key, required this.item, this.onDetail});
+  const ResultRow({super.key, required this.item, this.onDetail, this.percent = true, this.rawMax = 0, this.loadingRaw = false});
   final ResultItem item;
   final VoidCallback? onDetail;
+
+  /// true = 0–100 (server avg_score); false = raw points of [rawMax].
+  final bool percent;
+  final double rawMax;
+  final bool loadingRaw;
 
   @override
   Widget build(BuildContext context) {
@@ -154,9 +170,10 @@ class ResultRow extends StatelessWidget {
         ]),
       ),
     ]);
+    final (value, outOf) = resultScoreText(item, percent: percent, rawMax: rawMax, loading: loadingRaw);
     final score = Text.rich(TextSpan(children: [
-      TextSpan(text: item.combinedScore.toStringAsFixed(2), style: ts(19, weight: FontWeight.w700, tabular: true)),
-      TextSpan(text: ' / 100', style: ts(12, color: AppColors.textSecondary)),
+      TextSpan(text: value, style: ts(19, weight: FontWeight.w700, tabular: true)),
+      TextSpan(text: outOf, style: ts(12, color: AppColors.textSecondary)),
     ]));
     final judges = Text('${item.eligibleJudgeCount} Judges', style: ts(12, color: AppColors.textSecondary));
     final action = onDetail == null ? null : AdminBtn('View Detail', small: true, onTap: onDetail);
@@ -246,7 +263,7 @@ class _AdvancementPanel extends StatelessWidget {
       );
     }
     final record = store.getAdvancement(round.id);
-    final count = round.advancementCount ?? 0;
+    final count = store.advancementSlots(round.id);
     return _SidePanel(
       eyebrow: 'Advancement · Next Round ${next.name}',
       title: record != null ? '${record.selectedContestantIds.length} contestants advanced' : 'Qualified 0 / $count',
@@ -283,7 +300,7 @@ class _AdvancementPanel extends StatelessWidget {
 class _VisibilityControl extends StatelessWidget {
   const _VisibilityControl({required this.store, required this.roundId, required this.finalized});
   final AdminStore store;
-  final int roundId;
+  final String roundId;
   final bool finalized;
 
   @override
@@ -344,3 +361,55 @@ class _SidePanel extends StatelessWidget {
 String adminDateTime(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} ${adminTime(d)}';
 
+
+/// Final score as shown in Results: percent "63.33" + " / 100", or raw
+/// points "880" + " / 1000" (… while the per-judge detail is loading).
+(String, String) resultScoreText(ResultItem item, {required bool percent, required double rawMax, bool loading = false}) {
+  if (percent) return (item.combinedScore.toStringAsFixed(2), ' / 100');
+  final raw = item.rawScore;
+  return (raw == null ? (loading ? '…' : '—') : pct(raw), ' / ${pct(rawMax)}');
+}
+
+/// Results header toggle — on (default): percent (0–100); off: raw points.
+class ResultScaleToggle extends StatelessWidget {
+  const ResultScaleToggle({super.key, required this.roundId});
+  final String roundId;
+
+  @override
+  Widget build(BuildContext context) {
+    final admin = AdminScope.of(context);
+    final percent = admin.resultsAsPercent;
+    final rawMax = admin.rawMaxScore(roundId);
+    return AdminPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Show scores as percentage', style: ts(14, weight: FontWeight.w700)),
+            const SizedBox(height: 3),
+            Text(
+              percent
+                  ? 'Final scores on a 0–100 scale (weighted).'
+                  : 'Raw points: the judges\' average total of criterion scores, out of ${pct(rawMax)}. '
+                      'Ranking stays the official one.',
+              style: ts(12, color: AppColors.textSecondary, height: 1.45),
+            ),
+          ]),
+        ),
+        const SizedBox(width: 14),
+        if (admin.isLoadingRawScores(roundId)) ...[
+          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentBright)),
+          const SizedBox(width: 12),
+        ],
+        AdminToggle(
+          on: percent,
+          semanticLabel: 'Show scores as percentage',
+          onChanged: (v) {
+            admin.setResultsAsPercent(v);
+            if (!v) admin.loadRawScores(roundId);
+          },
+        ),
+      ]),
+    );
+  }
+}

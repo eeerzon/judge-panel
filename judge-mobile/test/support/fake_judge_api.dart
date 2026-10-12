@@ -6,14 +6,16 @@ import 'package:kreen_judge_mobile/domain/models.dart';
 
 /// In-memory stand-in for the judge API: one open "Preliminary" round with
 /// the prototype rubric (1–10, weights 10/10/10/30/40) and 3 contestants.
+/// Ids are non-numeric strings, like the live server's hashes since
+/// 2026-10-09 (round `r7`, round contestants `rc11`…, criteria `cr100`…).
 class FakeJudgeApi implements JudgeApi {
   FakeJudgeApi() {
     for (final c in contestantsJson) {
-      sheet[c['id'] as int] = {for (final k in criteriaJson) k['id'] as int: null};
+      sheet[c['id'] as String] = {for (final k in criteriaJson) k['id'] as String: null};
     }
   }
 
-  static const roundId = 7;
+  static const roundId = 'r7';
 
   RoundStatus status = RoundStatus.open;
 
@@ -23,8 +25,8 @@ class FakeJudgeApi implements JudgeApi {
   /// `vote.theme` in the rounds list (live shape; `source: "vote"` = none chosen).
   Map<String, dynamic> voteTheme = {'source': 'vote', 'id': 0, 'name': 'default', 'primary': '235,46,46', 'icon': '235,46,46'};
   bool resultsVisible = false;
-  final Map<int, Map<int, double?>> sheet = {};
-  final Map<int, String?> comments = {};
+  final Map<String, Map<String, double?>> sheet = {};
+  final Map<String, String?> comments = {};
   final List<List<ScoreInput>> saved = [];
   final List<String> submitKeys = [];
   String sheetStatus = 'not_started';
@@ -37,22 +39,28 @@ class FakeJudgeApi implements JudgeApi {
   Completer<void>? saveGate;
 
   static final criteriaJson = [
-    {'id': 100, 'name': 'Interview', 'is_scored': false, 'weight': '0', 'min_points': 0, 'max_points': 0, 'parent_id': null},
-    {'id': 101, 'name': 'Communication', 'is_scored': true, 'weight': '10.00', 'min_points': 1, 'max_points': 10, 'parent_id': 100},
-    {'id': 102, 'name': 'Confidence', 'is_scored': true, 'weight': '10.00', 'min_points': 1, 'max_points': 10, 'parent_id': 100},
-    {'id': 103, 'name': 'Substance', 'is_scored': true, 'weight': '10.00', 'min_points': 1, 'max_points': 10, 'parent_id': 100},
-    {'id': 104, 'name': 'Evening Gown', 'is_scored': true, 'weight': '30.00', 'min_points': 1, 'max_points': 10, 'parent_id': null},
-    {'id': 105, 'name': 'Stage Presence', 'is_scored': true, 'weight': '40.00', 'min_points': 1, 'max_points': 10, 'parent_id': null, 'step': '0.25'},
+    {'id': 'cr100', 'name': 'Interview', 'is_scored': false, 'weight': '0', 'min_points': 0, 'max_points': 0, 'parent_id': null},
+    {'id': 'cr101', 'name': 'Communication', 'is_scored': true, 'weight': '10.00', 'min_points': 1, 'max_points': 10, 'parent_id': 'cr100'},
+    {'id': 'cr102', 'name': 'Confidence', 'is_scored': true, 'weight': '10.00', 'min_points': 1, 'max_points': 10, 'parent_id': 'cr100'},
+    {'id': 'cr103', 'name': 'Substance', 'is_scored': true, 'weight': '10.00', 'min_points': 1, 'max_points': 10, 'parent_id': 'cr100'},
+    {'id': 'cr104', 'name': 'Evening Gown', 'is_scored': true, 'weight': '30.00', 'min_points': 1, 'max_points': 10, 'parent_id': null},
+    {'id': 'cr105', 'name': 'Stage Presence', 'is_scored': true, 'weight': '40.00', 'min_points': 1, 'max_points': 10, 'parent_id': null, 'step': '0.25'},
   ];
 
   static final contestantsJson = [
-    for (final (id, no, name) in [(11, 1, 'Mrs Shaida'), (12, 2, 'Miss Yuka'), (13, 3, 'Mister Jerome')])
+    for (final (id, no, name) in [('rc11', 1, 'Mrs Shaida'), ('rc12', 2, 'Miss Yuka'), ('rc13', 3, 'Mister Jerome')])
       {
         'id': id,
         'round_id': roundId,
         'id_finalis': 'f$id',
         'status': 'active',
-        'finalis': {'id_finalis': 'f$id', 'nama_finalis': name, 'nomor_urut': no, 'profesi': 'Model', 'poster_finalis': null},
+        'finalis': {
+          'id_finalis': 'f$id', 'nama_finalis': name, 'nomor_urut': no, 'profesi': 'Model', 'poster_finalis': null,
+          'nama_tambahan': no == 2 ? 'Yuka Tanaka' : null,
+          'usia': no == 2 ? 24 : null,
+          // A long biography: the Scoring panel must clamp it (Read more).
+          'deskripsi': no == 2 ? List.filled(12, 'Runway model and pageant finalist from Osaka.').join(' ') : null,
+        },
       },
   ];
 
@@ -98,16 +106,16 @@ class FakeJudgeApi implements JudgeApi {
   Future<List<Round>> rounds() async => [Round.fromJson(_roundJson)];
 
   @override
-  Future<Round> round(int roundId) async => Round.fromJson(_roundJson..remove('vote'));
+  Future<Round> round(String roundId) async => Round.fromJson(_roundJson..remove('vote'));
 
   @override
-  Future<List<Contestant>> contestants(int roundId) async => contestantsJson.map(Contestant.fromJson).toList();
+  Future<List<Contestant>> contestants(String roundId) async => contestantsJson.map(Contestant.fromJson).toList();
 
   @override
-  Future<List<Criterion>> criteria(int roundId) async => criteriaJson.map(Criterion.fromJson).toList();
+  Future<List<Criterion>> criteria(String roundId) async => criteriaJson.map(Criterion.fromJson).toList();
 
   @override
-  Future<List<ScoreSheetRow>> scoreSheet(int roundId) async => [
+  Future<List<ScoreSheetRow>> scoreSheet(String roundId) async => [
         for (final c in contestantsJson)
           ScoreSheetRow.fromJson({
             'round_contestant_id': c['id'],
@@ -122,9 +130,16 @@ class FakeJudgeApi implements JudgeApi {
       ];
 
   @override
-  Future<void> saveScores(int roundId, List<ScoreInput> scores) async {
+  Future<void> saveScores(String roundId, List<ScoreInput> scores) async {
     await saveGate?.future;
     _maybeFail();
+    // Live (2026-10-09): an empty raw_score is always rejected.
+    for (final (i, s) in scores.indexed) {
+      if (s.rawScore == null) {
+        throw ApiException('The scores.$i.raw_score field is required.',
+            statusCode: 422, fieldErrors: {'scores.$i.raw_score': ['The scores.$i.raw_score field is required.']});
+      }
+    }
     saved.add(scores);
     for (final s in scores) {
       sheet[s.contestantId]![s.criterionId] = s.rawScore;
@@ -133,17 +148,17 @@ class FakeJudgeApi implements JudgeApi {
   }
 
   @override
-  Future<List<ScoreSheetRow>> review(int roundId) => scoreSheet(roundId);
+  Future<List<ScoreSheetRow>> review(String roundId) => scoreSheet(roundId);
 
   @override
-  Future<void> submit(int roundId, String idempotencyKey) async {
+  Future<void> submit(String roundId, String idempotencyKey) async {
     submitKeys.add(idempotencyKey);
     _maybeFail();
     sheetStatus = 'submitted';
   }
 
   @override
-  Future<ResultSnapshot> results(int roundId) async {
+  Future<ResultSnapshot> results(String roundId) async {
     if (!resultsVisible) {
       throw const ApiException('Hasil ronde ini belum ditampilkan oleh admin.', statusCode: 403);
     }

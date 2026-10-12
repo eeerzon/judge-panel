@@ -20,14 +20,14 @@ class LoginResult {
 abstract class JudgeApi {
   Future<LoginResult> login(String email, String password);
   Future<List<Round>> rounds();
-  Future<Round> round(int roundId);
-  Future<List<Contestant>> contestants(int roundId);
-  Future<List<Criterion>> criteria(int roundId);
-  Future<List<ScoreSheetRow>> scoreSheet(int roundId);
-  Future<void> saveScores(int roundId, List<ScoreInput> scores);
-  Future<List<ScoreSheetRow>> review(int roundId);
-  Future<void> submit(int roundId, String idempotencyKey);
-  Future<ResultSnapshot> results(int roundId);
+  Future<Round> round(String roundId);
+  Future<List<Contestant>> contestants(String roundId);
+  Future<List<Criterion>> criteria(String roundId);
+  Future<List<ScoreSheetRow>> scoreSheet(String roundId);
+  Future<void> saveScores(String roundId, List<ScoreInput> scores);
+  Future<List<ScoreSheetRow>> review(String roundId);
+  Future<void> submit(String roundId, String idempotencyKey);
+  Future<ResultSnapshot> results(String roundId);
 }
 
 class HttpJudgeApi implements JudgeApi {
@@ -63,13 +63,16 @@ class HttpJudgeApi implements JudgeApi {
   @override
   Future<List<Round>> rounds() async =>
       _list(await client.get('/judge/rounds')).map(Round.fromJson).toList()
-        ..sort((a, b) => a.orderNo != b.orderNo ? a.orderNo.compareTo(b.orderNo) : a.id.compareTo(b.id));
+        // Ids are opaque hashes now: ties fall back to creation time.
+        ..sort((a, b) => a.orderNo != b.orderNo
+            ? a.orderNo.compareTo(b.orderNo)
+            : (a.createdAt ?? DateTime(0)).compareTo(b.createdAt ?? DateTime(0)));
 
   @override
-  Future<Round> round(int roundId) async => Round.fromJson(_map(await client.get('/judge/rounds/$roundId')));
+  Future<Round> round(String roundId) async => Round.fromJson(_map(await client.get('/judge/rounds/$roundId')));
 
   @override
-  Future<List<Contestant>> contestants(int roundId) async => _list(await client.get('/judge/rounds/$roundId/contestants'))
+  Future<List<Contestant>> contestants(String roundId) async => _list(await client.get('/judge/rounds/$roundId/contestants'))
       .where((j) => '${j['status'] ?? 'active'}'.toLowerCase() == 'active')
       .map(Contestant.fromJson)
       .toList()
@@ -88,30 +91,30 @@ class HttpJudgeApi implements JudgeApi {
   }
 
   @override
-  Future<List<Criterion>> criteria(int roundId) async => _flatCriteria(await client.get('/judge/rounds/$roundId/criteria'))
+  Future<List<Criterion>> criteria(String roundId) async => _flatCriteria(await client.get('/judge/rounds/$roundId/criteria'))
       .where((j) => j['flag_aktif'] != false)
       .map(Criterion.fromJson)
       .toList();
 
   @override
-  Future<List<ScoreSheetRow>> scoreSheet(int roundId) async =>
+  Future<List<ScoreSheetRow>> scoreSheet(String roundId) async =>
       _list(await client.get('/judge/rounds/$roundId/score-sheet')).map(ScoreSheetRow.fromJson).toList();
 
   @override
-  Future<void> saveScores(int roundId, List<ScoreInput> scores) async {
+  Future<void> saveScores(String roundId, List<ScoreInput> scores) async {
     await client.post('/judge/rounds/$roundId/score-sheet', {'scores': [for (final s in scores) s.toJson()]});
   }
 
   @override
-  Future<List<ScoreSheetRow>> review(int roundId) async =>
+  Future<List<ScoreSheetRow>> review(String roundId) async =>
       _list(await client.post('/judge/rounds/$roundId/review')).map(ScoreSheetRow.fromJson).toList();
 
   @override
-  Future<void> submit(int roundId, String idempotencyKey) async {
+  Future<void> submit(String roundId, String idempotencyKey) async {
     await client.post('/judge/rounds/$roundId/submit', {'idempotency_key': idempotencyKey});
   }
 
   @override
-  Future<ResultSnapshot> results(int roundId) async =>
+  Future<ResultSnapshot> results(String roundId) async =>
       ResultSnapshot.fromJson(_map(await client.get('/judge/rounds/$roundId/results')));
 }

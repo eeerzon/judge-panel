@@ -25,55 +25,55 @@ abstract class AdminApi {
   Future<void> createJudge({required String name, required String email, required String password, required String phone, required bool active});
 
   /// [password] null/empty = unchanged.
-  Future<void> updateJudge(int id, {required String name, required String email, String? password, required String phone, required bool active});
-  Future<void> deleteJudge(int id);
+  Future<void> updateJudge(String id, {required String name, required String email, String? password, required String phone, required bool active});
+  Future<void> deleteJudge(String id);
 
   /// `PUT /judge/admin/judges/{id}/roles` — [roles] as `(role, scopeId)`.
-  Future<void> setJudgeRoles(int id, List<(String, String?)> roles);
+  Future<void> setJudgeRoles(String id, List<(String, String?)> roles);
 
   // ------------------------------------------------ rounds (`/judge/admin/rounds/{id}`)
-  Future<AdminRound> round(int id);
-  Future<void> updateRound(int id,
+  Future<AdminRound> round(String id);
+  Future<void> updateRound(String id,
       {required String name, required String promoteMode, required int promoteTopN, required bool favoritPromoteEnabled});
-  Future<void> deleteRound(int id);
-  Future<void> openRound(int id);
-  Future<void> closeRound(int id);
-  Future<void> finalizeRound(int id);
+  Future<void> deleteRound(String id);
+  Future<void> openRound(String id);
+  Future<void> closeRound(String id);
+  Future<void> finalizeRound(String id);
 
   /// Round contestants (`id` = round_contestant id, with `finalis`).
-  Future<List<Map<String, dynamic>>> roundContestants(int id);
-  Future<void> addRoundContestant(int id, String idFinalis, {String entryType = 'manual'});
-  Future<void> removeRoundContestant(int id, int roundContestantId);
+  Future<List<Map<String, dynamic>>> roundContestants(String id);
+  Future<void> addRoundContestant(String id, String idFinalis, {String entryType = 'manual'});
+  Future<void> removeRoundContestant(String id, String roundContestantId);
 
   /// Round judge assignments (with `judge`).
-  Future<List<Map<String, dynamic>>> roundJudges(int id);
+  Future<List<Map<String, dynamic>>> roundJudges(String id);
   /// [required] false = Optional judge (does not block Close Round).
-  Future<void> addRoundJudge(int id, int judgeId, {bool required = true});
-  Future<void> removeRoundJudge(int id, int judgeId);
+  Future<void> addRoundJudge(String id, String judgeId, {bool required = true});
+  Future<void> removeRoundJudge(String id, String judgeId);
 
   /// `PATCH rounds/{id}/judges/{judgeId}` ({judgeId} = judge_id) — updates the
   /// existing assignment; only the given fields are sent. [status]:
   /// assigned | excused | removed ([excuseReason] required for excused).
-  Future<void> updateRoundJudge(int id, int judgeId, {bool? required, String? status, String? excuseReason});
+  Future<void> updateRoundJudge(String id, String judgeId, {bool? required, String? status, String? excuseReason});
 
-  Future<List<Map<String, dynamic>>> criteria(int id);
+  Future<List<Map<String, dynamic>>> criteria(String id);
   /// Returns the created criterion's id (null if the response has none).
-  Future<int?> createCriterion(int id, Map<String, dynamic> body);
-  Future<void> updateCriterion(int id, int criterionId, Map<String, dynamic> body);
-  Future<void> deleteCriterion(int id, int criterionId);
+  Future<String?> createCriterion(String id, Map<String, dynamic> body);
+  Future<void> updateCriterion(String id, String criterionId, Map<String, dynamic> body);
+  Future<void> deleteCriterion(String id, String criterionId);
 
-  Future<Map<String, dynamic>> monitoring(int id);
-  Future<void> reopenScoreSheet(int id, int scoreSheetId, String reason);
+  Future<Map<String, dynamic>> monitoring(String id);
+  Future<void> reopenScoreSheet(String id, String scoreSheetId, String reason);
 
   /// Null until the round has a result (e.g. while open).
-  Future<Map<String, dynamic>?> results(int id);
-  Future<Map<String, dynamic>> resultDetail(int id, int roundContestantId);
-  Future<void> setResultVisibility(int id, bool visible);
-  Future<Map<String, dynamic>> advancement(int id);
-  Future<void> confirmAdvancement(int id, {required List<int> roundContestantIds, required String reason, required bool includeFavorit});
+  Future<Map<String, dynamic>?> results(String id);
+  Future<Map<String, dynamic>> resultDetail(String id, String roundContestantId);
+  Future<void> setResultVisibility(String id, bool visible);
+  Future<Map<String, dynamic>> advancement(String id);
+  Future<void> confirmAdvancement(String id, {required List<String> roundContestantIds, required String reason, required bool includeFavorit});
 
   /// [reason] 3–1000 characters.
-  Future<void> resetAdvancement(int id, String reason);
+  Future<void> resetAdvancement(String id, String reason);
 
   // ------------------------------------------------ event settings
   Future<ServerEventSettings> eventSettings(String idVote);
@@ -170,24 +170,24 @@ class HttpAdminApi implements AdminApi {
       client.post('/judge/admin/judges', _judgeBody(name, email, password, phone, active));
 
   @override
-  Future<void> updateJudge(int id, {required String name, required String email, String? password, required String phone, required bool active}) =>
+  Future<void> updateJudge(String id, {required String name, required String email, String? password, required String phone, required bool active}) =>
       client.patch('/judge/admin/judges/$id', _judgeBody(name, email, password, phone, active));
 
   @override
-  Future<void> deleteJudge(int id) => client.delete('/judge/admin/judges/$id');
+  Future<void> deleteJudge(String id) => client.delete('/judge/admin/judges/$id');
 
   @override
-  Future<void> setJudgeRoles(int id, List<(String, String?)> roles) => client.put('/judge/admin/judges/$id/roles', {
+  Future<void> setJudgeRoles(String id, List<(String, String?)> roles) => client.put('/judge/admin/judges/$id/roles', {
         'roles': [for (final (role, scope) in roles) {'role': role, 'scope_id': scope}],
       });
 
-  static String _r(int id) => '/judge/admin/rounds/$id';
+  static String _r(String id) => '/judge/admin/rounds/$id';
 
   @override
-  Future<AdminRound> round(int id) async => AdminRound.fromApi(_map(await client.get(_r(id))));
+  Future<AdminRound> round(String id) async => AdminRound.fromApi(_map(await client.get(_r(id))));
 
   @override
-  Future<void> updateRound(int id,
+  Future<void> updateRound(String id,
           {required String name, required String promoteMode, required int promoteTopN, required bool favoritPromoteEnabled}) =>
       client.patch(_r(id), {
         'name': name.trim(),
@@ -197,40 +197,40 @@ class HttpAdminApi implements AdminApi {
       });
 
   @override
-  Future<void> deleteRound(int id) => client.delete(_r(id));
+  Future<void> deleteRound(String id) => client.delete(_r(id));
 
   @override
-  Future<void> openRound(int id) => client.post('${_r(id)}/open');
+  Future<void> openRound(String id) => client.post('${_r(id)}/open');
 
   @override
-  Future<void> closeRound(int id) => client.post('${_r(id)}/close');
+  Future<void> closeRound(String id) => client.post('${_r(id)}/close');
 
   @override
-  Future<void> finalizeRound(int id) => client.post('${_r(id)}/finalize');
+  Future<void> finalizeRound(String id) => client.post('${_r(id)}/finalize');
 
   @override
-  Future<List<Map<String, dynamic>>> roundContestants(int id) async => _list(await client.get('${_r(id)}/contestants'));
+  Future<List<Map<String, dynamic>>> roundContestants(String id) async => _list(await client.get('${_r(id)}/contestants'));
 
   @override
-  Future<void> addRoundContestant(int id, String idFinalis, {String entryType = 'manual'}) =>
+  Future<void> addRoundContestant(String id, String idFinalis, {String entryType = 'manual'}) =>
       client.post('${_r(id)}/contestants', {'id_finalis': idFinalis, 'entry_type': entryType});
 
   @override
-  Future<void> removeRoundContestant(int id, int roundContestantId) =>
+  Future<void> removeRoundContestant(String id, String roundContestantId) =>
       client.delete('${_r(id)}/contestants/$roundContestantId');
 
   @override
-  Future<List<Map<String, dynamic>>> roundJudges(int id) async => _list(await client.get('${_r(id)}/judges'));
+  Future<List<Map<String, dynamic>>> roundJudges(String id) async => _list(await client.get('${_r(id)}/judges'));
 
   @override
-  Future<void> addRoundJudge(int id, int judgeId, {bool required = true}) =>
+  Future<void> addRoundJudge(String id, String judgeId, {bool required = true}) =>
       client.post('${_r(id)}/judges', {'judge_id': judgeId, 'required': required});
 
   @override
-  Future<void> removeRoundJudge(int id, int judgeId) => client.delete('${_r(id)}/judges/$judgeId');
+  Future<void> removeRoundJudge(String id, String judgeId) => client.delete('${_r(id)}/judges/$judgeId');
 
   @override
-  Future<void> updateRoundJudge(int id, int judgeId, {bool? required, String? status, String? excuseReason}) =>
+  Future<void> updateRoundJudge(String id, String judgeId, {bool? required, String? status, String? excuseReason}) =>
       client.patch('${_r(id)}/judges/$judgeId', {
         'required': ?required,
         'assignment_status': ?status,
@@ -251,47 +251,47 @@ class HttpAdminApi implements AdminApi {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> criteria(int id) async => flattenCriteria(await client.get('${_r(id)}/criteria'));
+  Future<List<Map<String, dynamic>>> criteria(String id) async => flattenCriteria(await client.get('${_r(id)}/criteria'));
 
   @override
-  Future<int?> createCriterion(int id, Map<String, dynamic> body) async {
+  Future<String?> createCriterion(String id, Map<String, dynamic> body) async {
     final created = _map(await client.post('${_r(id)}/criteria', body))['id'];
-    return created is num ? created.toInt() : int.tryParse('$created');
+    return created == null || '$created'.isEmpty ? null : '$created';
   }
 
   @override
-  Future<void> updateCriterion(int id, int criterionId, Map<String, dynamic> body) =>
+  Future<void> updateCriterion(String id, String criterionId, Map<String, dynamic> body) =>
       client.patch('${_r(id)}/criteria/$criterionId', body);
 
   @override
-  Future<void> deleteCriterion(int id, int criterionId) => client.delete('${_r(id)}/criteria/$criterionId');
+  Future<void> deleteCriterion(String id, String criterionId) => client.delete('${_r(id)}/criteria/$criterionId');
 
   @override
-  Future<Map<String, dynamic>> monitoring(int id) async => _map(await client.get('${_r(id)}/monitoring'));
+  Future<Map<String, dynamic>> monitoring(String id) async => _map(await client.get('${_r(id)}/monitoring'));
 
   @override
-  Future<void> reopenScoreSheet(int id, int scoreSheetId, String reason) =>
+  Future<void> reopenScoreSheet(String id, String scoreSheetId, String reason) =>
       client.post('${_r(id)}/score-sheets/$scoreSheetId/reopen', {'reason': reason});
 
   @override
-  Future<Map<String, dynamic>?> results(int id) async {
+  Future<Map<String, dynamic>?> results(String id) async {
     final data = await client.get('${_r(id)}/results');
     return data is Map ? Map<String, dynamic>.from(data) : null;
   }
 
   @override
-  Future<Map<String, dynamic>> resultDetail(int id, int roundContestantId) async =>
+  Future<Map<String, dynamic>> resultDetail(String id, String roundContestantId) async =>
       _map(await client.get('${_r(id)}/results/$roundContestantId'));
 
   @override
-  Future<void> setResultVisibility(int id, bool visible) =>
+  Future<void> setResultVisibility(String id, bool visible) =>
       client.patch('${_r(id)}/results/visibility', {'result_visibility': visible});
 
   @override
-  Future<Map<String, dynamic>> advancement(int id) async => _map(await client.get('${_r(id)}/advancement'));
+  Future<Map<String, dynamic>> advancement(String id) async => _map(await client.get('${_r(id)}/advancement'));
 
   @override
-  Future<void> confirmAdvancement(int id, {required List<int> roundContestantIds, required String reason, required bool includeFavorit}) =>
+  Future<void> confirmAdvancement(String id, {required List<String> roundContestantIds, required String reason, required bool includeFavorit}) =>
       client.post('${_r(id)}/advancement', {
         'include_favorit': includeFavorit,
         'reason': reason,
@@ -299,7 +299,7 @@ class HttpAdminApi implements AdminApi {
       });
 
   @override
-  Future<void> resetAdvancement(int id, String reason) => client.delete('${_r(id)}/advancement${_query({'reason': reason})}');
+  Future<void> resetAdvancement(String id, String reason) => client.delete('${_r(id)}/advancement${_query({'reason': reason})}');
 
   @override
   Future<List<Map<String, dynamic>>> themes() async => _list(_map(await client.get('/create-vote/themes'))['themes']);

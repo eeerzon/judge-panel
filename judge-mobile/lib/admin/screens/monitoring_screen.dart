@@ -14,7 +14,7 @@ import '../widgets/round_workspace.dart';
 
 class AdminMonitoringScreen extends StatefulWidget {
   const AdminMonitoringScreen({super.key, required this.roundId});
-  final int roundId;
+  final String roundId;
 
   @override
   State<AdminMonitoringScreen> createState() => _AdminMonitoringScreenState();
@@ -137,7 +137,7 @@ class _FilterBar extends StatelessWidget {
 }
 
 /// Judge detail drawer with governance actions (Monitoring).
-void showJudgeDrawer(BuildContext context, int roundId, int judgeId) {
+void showJudgeDrawer(BuildContext context, String roundId, String judgeId) {
   final admin = AdminScope.read(context);
   showAdminDrawer<void>(
     context,
@@ -209,7 +209,7 @@ void showJudgeDrawer(BuildContext context, int roundId, int judgeId) {
 }
 
 /// Confirmation (+ required reason for reopen/excuse) → store command.
-Future<void> governanceAction(BuildContext context, AdminStore store, int roundId, MonitoringJudge judge, String action) async {
+Future<void> governanceAction(BuildContext context, AdminStore store, String roundId, MonitoringJudge judge, String action) async {
   final titles = {
     'reopen': "Reopen ${judge.name}'s submission?",
     'excuse': 'Mark ${judge.number} as excused?',

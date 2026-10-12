@@ -25,9 +25,10 @@ const _tabs = [
   (RoundTab.settings, 'Settings · Soon', null),
 ];
 
-/// With the Admin API every round page reloads the round when it opens
-/// ([AdminStore.loadRound], plus [onLoad] for page-specific data) and shows
-/// a loading / error state until the round has been loaded once.
+/// With the Admin API every round page refreshes, when it opens, only the
+/// data its tab shows ([partsFor] → [AdminStore.loadRound], plus [onLoad]
+/// for page-specific data) and shows a loading / error state until the round
+/// has been loaded once.
 class RoundWorkspace extends StatefulWidget {
   const RoundWorkspace({
     super.key,
@@ -40,7 +41,7 @@ class RoundWorkspace extends StatefulWidget {
     this.onLoad,
   });
 
-  final int roundId;
+  final String roundId;
   final RoundTab activeTab;
   final String pageTitle;
   final String? pageDescription;
@@ -56,6 +57,24 @@ class RoundWorkspace extends StatefulWidget {
   State<RoundWorkspace> createState() => _RoundWorkspaceState();
 }
 
+/// What each tab shows — the only round data it reloads when opened.
+Set<RoundPart> partsFor(RoundTab tab) => switch (tab) {
+  // Readiness: roster, judges, criteria weight, submissions.
+  RoundTab.overview => const {
+    RoundPart.meta,
+    RoundPart.contestants,
+    RoundPart.judges,
+    RoundPart.criteria,
+    RoundPart.monitoring,
+  },
+  RoundTab.contestants => const {RoundPart.contestants},
+  RoundTab.judges => const {RoundPart.judges},
+  RoundTab.criteria => const {RoundPart.criteria},
+  RoundTab.monitoring => const {RoundPart.meta, RoundPart.judges, RoundPart.monitoring},
+  RoundTab.results => const {RoundPart.meta, RoundPart.monitoring, RoundPart.results, RoundPart.advancement},
+  RoundTab.settings => const {RoundPart.meta},
+};
+
 class _RoundWorkspaceState extends State<RoundWorkspace> {
   @override
   void initState() {
@@ -63,7 +82,7 @@ class _RoundWorkspaceState extends State<RoundWorkspace> {
     final admin = AdminScope.read(context);
     if (!admin.connected) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await admin.loadRound(widget.roundId);
+      await admin.loadRound(widget.roundId, only: partsFor(widget.activeTab));
       await widget.onLoad?.call(admin);
     });
   }
@@ -80,35 +99,66 @@ class _RoundWorkspaceState extends State<RoundWorkspace> {
     final facts = Wrap(
       spacing: compact ? 5 : 12,
       children: [
-        Text.rich(TextSpan(children: [
-          TextSpan(text: '${readiness.contestantsAssigned}', style: ts(compact ? 12 : 13, weight: FontWeight.w700, tabular: true)),
-          const TextSpan(text: ' contestants'),
-        ]), style: ts(compact ? 12 : 13, color: AppColors.textSecondary)),
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '${readiness.contestantsAssigned}',
+                style: ts(compact ? 12 : 13, weight: FontWeight.w700, tabular: true),
+              ),
+              const TextSpan(text: ' contestants'),
+            ],
+          ),
+          style: ts(compact ? 12 : 13, color: AppColors.textSecondary),
+        ),
         if (compact) Text('·', style: ts(12, color: AppColors.textSecondary)),
-        Text.rich(TextSpan(children: [
-          TextSpan(text: '${readiness.judgesAssigned}', style: ts(compact ? 12 : 13, weight: FontWeight.w700, tabular: true)),
-          const TextSpan(text: ' judges'),
-        ]), style: ts(compact ? 12 : 13, color: AppColors.textSecondary)),
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '${readiness.judgesAssigned}',
+                style: ts(compact ? 12 : 13, weight: FontWeight.w700, tabular: true),
+              ),
+              const TextSpan(text: ' judges'),
+            ],
+          ),
+          style: ts(compact ? 12 : 13, color: AppColors.textSecondary),
+        ),
       ],
     );
 
-    final heading = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Align(
-        alignment: Alignment.centerLeft,
-        child: BackLink('Rounds', onTap: () => AdminNav.go(context, AdminRoutes.rounds), minHeight: compact ? 44 : 48),
-      ),
-      SizedBox(height: compact ? 0 : 2),
-      if (!compact) ...[const AdminEyebrow('Round workspace'), const SizedBox(height: 7)],
-      Row(children: [
-        Flexible(child: Text(round.name, style: ts(compact ? 21 : 23, weight: FontWeight.w700))),
-        const SizedBox(width: 10),
-        AdminStatus(round.status),
-        if (admin.connected) ...[
-          const SizedBox(width: 10),
-          AdminLink('Edit', color: AppColors.textSecondary, onTap: () => showRoundForm(context, round: round)),
-        ],
-      ]),
-    ]);
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: BackLink(
+            'Rounds',
+            onTap: () => AdminNav.go(context, AdminRoutes.rounds),
+            minHeight: compact ? 44 : 48,
+          ),
+        ),
+        SizedBox(height: compact ? 0 : 2),
+        if (!compact) ...[const AdminEyebrow('Round workspace'), const SizedBox(height: 7)],
+        Row(
+          children: [
+            Flexible(
+              child: Text(round.name, style: ts(compact ? 21 : 23, weight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 10),
+            AdminStatus(round.status),
+            if (admin.connected) ...[
+              const SizedBox(width: 10),
+              AdminLink(
+                'Edit',
+                color: AppColors.textSecondary,
+                onTap: () => showRoundForm(context, round: round),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
 
     return AdminShell(
       activeNav: 'rounds',
@@ -123,22 +173,33 @@ class _RoundWorkspaceState extends State<RoundWorkspace> {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border),
           ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Padding(
-              padding: EdgeInsets.only(bottom: compact ? 10 : 20),
-              child: compact
-                  ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [heading, const SizedBox(height: 3), facts])
-                  : Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Expanded(child: heading),
-                      const SizedBox(width: 18),
-                      facts,
-                    ]),
-            ),
-            Container(
-              decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
-              child: _TabBar(roundId: roundId, active: widget.activeTab, compact: compact),
-            ),
-          ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(bottom: compact ? 10 : 20),
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [heading, const SizedBox(height: 3), facts],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(child: heading),
+                          const SizedBox(width: 18),
+                          facts,
+                        ],
+                      ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: AppColors.border)),
+                ),
+                child: _TabBar(roundId: roundId, active: widget.activeTab, compact: compact),
+              ),
+            ],
+          ),
         ),
         // page header (one title below the tabs)
         AdminPageHeader(title: widget.pageTitle, description: widget.pageDescription),
@@ -164,7 +225,7 @@ class _RoundWorkspaceState extends State<RoundWorkspace> {
 
 class _TabBar extends StatefulWidget {
   const _TabBar({required this.roundId, required this.active, required this.compact});
-  final int roundId;
+  final String roundId;
   final RoundTab active;
   final bool compact;
 
@@ -191,23 +252,29 @@ class _TabBarState extends State<_TabBar> {
     final gap = widget.compact ? 18.0 : (width * 0.022).clamp(20.0, 32.0);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: Row(children: [
-        for (var i = 0; i < _tabs.length; i++) ...[
-          if (i > 0) SizedBox(width: gap),
-          _tab(_tabs[i].$1, _tabs[i].$2, _tabs[i].$3),
+      child: Row(
+        children: [
+          for (var i = 0; i < _tabs.length; i++) ...[
+            if (i > 0) SizedBox(width: gap),
+            _tab(_tabs[i].$1, _tabs[i].$2, _tabs[i].$3),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
   Widget _tab(RoundTab tab, String label, String? route) {
     final active = tab == widget.active;
     final disabled = route == null;
-    final text = Text(label,
-        style: ts(widget.compact ? 12 : 13,
-            weight: active ? FontWeight.w700 : FontWeight.w600,
-            color: active ? AppColors.textPrimary : AppColors.textSecondary,
-            height: 1));
+    final text = Text(
+      label,
+      style: ts(
+        widget.compact ? 12 : 13,
+        weight: active ? FontWeight.w700 : FontWeight.w600,
+        color: active ? AppColors.textPrimary : AppColors.textSecondary,
+        height: 1,
+      ),
+    );
     final body = Container(
       key: active ? _activeKey : null,
       constraints: BoxConstraints(minHeight: widget.compact ? 48 : 56),

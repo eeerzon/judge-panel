@@ -37,19 +37,19 @@ class RoundData {
   List<Criterion> get criteria => [for (final s in sections) ...s.criteria];
 
   /// Working values (server values overlaid with local drafts).
-  final Map<int, Map<int, double?>> scores = {};
+  final Map<String, Map<String, double?>> scores = {};
 
   /// Last values acknowledged by the server.
-  final Map<int, Map<int, double?>> server = {};
+  final Map<String, Map<String, double?>> server = {};
 
-  final Map<int, String> notes = {};
-  final Map<int, String> sheetStatus = {};
+  final Map<String, String> notes = {};
+  final Map<String, String> sheetStatus = {};
 }
 
 class _Draft {
-  final Map<int, Map<int, double?>> scores = {};
-  final Map<int, String> notes = {};
-  final Set<int> dirty = {};
+  final Map<String, Map<String, double?>> scores = {};
+  final Map<String, String> notes = {};
+  final Set<String> dirty = {};
   String? idempotencyKey;
   DateTime? submittedAt;
 
@@ -57,9 +57,9 @@ class _Draft {
 
   Map<String, dynamic> toJson() => {
         'scores': {
-          for (final e in scores.entries) '${e.key}': {for (final s in e.value.entries) '${s.key}': s.value},
+          for (final e in scores.entries) e.key: {for (final s in e.value.entries) s.key: s.value},
         },
-        'notes': {for (final e in notes.entries) '${e.key}': e.value},
+        'notes': {for (final e in notes.entries) e.key: e.value},
         'dirty': dirty.toList(),
         'idempotencyKey': idempotencyKey,
         'submittedAt': submittedAt?.toIso8601String(),
@@ -68,19 +68,14 @@ class _Draft {
   static _Draft fromJson(Map<String, dynamic> j) {
     final d = _Draft();
     (j['scores'] as Map? ?? {}).forEach((cid, values) {
-      final id = int.tryParse('$cid');
-      if (id == null || values is! Map) return;
-      d.scores[id] = {
-        for (final e in values.entries)
-          if (int.tryParse('${e.key}') != null) int.parse('${e.key}'): (e.value as num?)?.toDouble(),
-      };
+      if (values is! Map) return;
+      d.scores['$cid'] = {for (final e in values.entries) '${e.key}': (e.value as num?)?.toDouble()};
     });
     (j['notes'] as Map? ?? {}).forEach((cid, text) {
-      final id = int.tryParse('$cid');
-      if (id != null && text is String) d.notes[id] = text;
+      if (text is String) d.notes['$cid'] = text;
     });
     for (final c in (j['dirty'] as List? ?? const [])) {
-      if (c is num) d.dirty.add(c.toInt());
+      if (c != null) d.dirty.add('$c');
     }
     d.idempotencyKey = j['idempotencyKey'] as String?;
     d.submittedAt = DateTime.tryParse('${j['submittedAt']}');
@@ -110,14 +105,14 @@ class JudgeStore extends ChangeNotifier {
   DateTime? roundsLoadedAt;
   ApiException? roundsError;
 
-  final Map<int, RoundData> _data = {};
-  final Map<int, Future<void>> _loading = {};
-  final Map<int, ApiException> _errors = {};
+  final Map<String, RoundData> _data = {};
+  final Map<String, Future<void>> _loading = {};
+  final Map<String, ApiException> _errors = {};
 
-  final Map<int, _Draft> _drafts = {};
-  final Map<int, Map<int, int>> _versions = {};
-  final Map<int, Timer> _flushTimers = {};
-  final Map<int, Future<bool>> _inFlight = {};
+  final Map<String, _Draft> _drafts = {};
+  final Map<String, Map<String, int>> _versions = {};
+  final Map<String, Timer> _flushTimers = {};
+  final Map<String, Future<bool>> _inFlight = {};
   Timer? _retryTimer;
   int _retryAttempt = 0;
 
@@ -126,7 +121,8 @@ class JudgeStore extends ChangeNotifier {
 
   // ------------------------------------------------------------ lifecycle
 
-  String get _draftKey => 'kreenJudgeDrafts.${_judgeId ?? 0}';
+  /// v2: ids are server strings since 2026-10-09 (v1 drafts used numbers).
+  String get _draftKey => 'kreenJudgeDrafts.v2.${_judgeId ?? 0}';
 
   /// Scopes caches and drafts to the signed-in judge (null = signed out).
   void bindJudge(String? judgeId) {
@@ -138,8 +134,7 @@ class JudgeStore extends ChangeNotifier {
       final raw = _prefs?.getString(_draftKey);
       if (raw != null) {
         (jsonDecode(raw) as Map<String, dynamic>).forEach((rid, d) {
-          final id = int.tryParse(rid);
-          if (id != null && d is Map) _drafts[id] = _Draft.fromJson(Map<String, dynamic>.from(d));
+          if (d is Map) _drafts[rid] = _Draft.fromJson(Map<String, dynamic>.from(d));
         });
       }
     } catch (_) {}
@@ -184,7 +179,7 @@ class JudgeStore extends ChangeNotifier {
     if (prefs == null || _judgeId == null) return;
     try {
       _drafts.removeWhere((_, d) => d.isEmpty);
-      await prefs.setString(_draftKey, jsonEncode({for (final e in _drafts.entries) '${e.key}': e.value.toJson()}));
+      await prefs.setString(_draftKey, jsonEncode({for (final e in _drafts.entries) e.key: e.value.toJson()}));
     } catch (_) {}
   }
 
@@ -230,14 +225,14 @@ class JudgeStore extends ChangeNotifier {
     await loadRounds();
   }
 
-  RoundData? data(int roundId) => _data[roundId];
-  bool isLoading(int roundId) => _loading.containsKey(roundId);
-  ApiException? errorFor(int roundId) => _errors[roundId];
+  RoundData? data(String roundId) => _data[roundId];
+  bool isLoading(String roundId) => _loading.containsKey(roundId);
+  ApiException? errorFor(String roundId) => _errors[roundId];
 
   /// Fetches round + contestants + criteria + score-sheet (in parallel) and
   /// overlays unsent local drafts.
   /// Concurrent callers share the in-flight load.
-  Future<void> ensureRound(int roundId, {bool force = false}) {
+  Future<void> ensureRound(String roundId, {bool force = false}) {
     final inFlight = _loading[roundId];
     if (inFlight != null) return inFlight;
     if (!force && _data.containsKey(roundId)) return Future.value();
@@ -246,7 +241,7 @@ class JudgeStore extends ChangeNotifier {
     return future;
   }
 
-  Future<void> _loadRound(int roundId) async {
+  Future<void> _loadRound(String roundId) async {
     _errors.remove(roundId);
     notifyListeners();
     try {
@@ -277,7 +272,7 @@ class JudgeStore extends ChangeNotifier {
     if (_drafts[roundId]?.dirty.isNotEmpty ?? false) _scheduleFlush(roundId);
   }
 
-  void _applySheet(RoundData data, List<ScoreSheetRow> sheet, int roundId) {
+  void _applySheet(RoundData data, List<ScoreSheetRow> sheet, String roundId) {
     final draft = _drafts[roundId];
     final rows = {for (final r in sheet) r.contestantId: r};
     for (final c in data.contestants) {
@@ -295,7 +290,7 @@ class JudgeStore extends ChangeNotifier {
 
   /// `POST /review` returns the same rows as the score sheet; refresh the
   /// statuses/values the Review screen shows (never overwriting drafts).
-  Future<void> refreshReview(int roundId) async {
+  Future<void> refreshReview(String roundId) async {
     final data = _data[roundId];
     if (data == null) return ensureRound(roundId);
     try {
@@ -313,7 +308,7 @@ class JudgeStore extends ChangeNotifier {
 
   /// Event title (`vote.judul_vote`) of the round's own event — a judge can
   /// have rounds of several events. Without a round: the first one listed.
-  String eventName([int? roundId]) {
+  String eventName([String? roundId]) {
     if (roundId != null) {
       final listed = rounds?.where((r) => r.id == roundId).firstOrNull;
       final name = getRound(roundId)?.eventName ?? listed?.eventName;
@@ -322,23 +317,23 @@ class JudgeStore extends ChangeNotifier {
     return rounds?.map((r) => r.eventName).whereType<String>().firstOrNull ?? 'KREEN Judging';
   }
 
-  int eventYear([int? roundId]) {
+  int eventYear([String? roundId]) {
     final r = roundId == null ? rounds?.firstOrNull : getRound(roundId);
     return (r?.openedAt ?? r?.createdAt ?? DateTime.now()).year;
   }
 
-  Round? getRound(int roundId) => _data[roundId]?.round ?? rounds?.where((r) => r.id == roundId).firstOrNull;
+  Round? getRound(String roundId) => _data[roundId]?.round ?? rounds?.where((r) => r.id == roundId).firstOrNull;
 
-  List<Contestant> contestantsOf(int roundId) => _data[roundId]?.contestants ?? const [];
+  List<Contestant> contestantsOf(String roundId) => _data[roundId]?.contestants ?? const [];
 
-  Contestant? getContestant(int roundId, int contestantId) =>
+  Contestant? getContestant(String roundId, String contestantId) =>
       contestantsOf(roundId).where((c) => c.id == contestantId).firstOrNull;
 
-  double? getScore(int roundId, int contestantId, int criterionId) =>
+  double? getScore(String roundId, String contestantId, String criterionId) =>
       _data[roundId]?.scores[contestantId]?[criterionId];
 
   /// FR-1: status is always derived from the number of filled criteria.
-  StatusInfo getContestantStatus(int roundId, int contestantId) {
+  StatusInfo getContestantStatus(String roundId, String contestantId) {
     final data = _data[roundId];
     final criteria = data?.criteria ?? const <Criterion>[];
     final scores = data?.scores[contestantId] ?? const {};
@@ -348,7 +343,7 @@ class JudgeStore extends ChangeNotifier {
     return StatusInfo(ScoreStatus.draft, scoredCount, criteria.length);
   }
 
-  bool isContestantComplete(int roundId, int contestantId) =>
+  bool isContestantComplete(String roundId, String contestantId) =>
       getContestantStatus(roundId, contestantId).status == ScoreStatus.scored;
 
   /// FR-2 generalised to server criteria ranges: each criterion contributes
@@ -356,7 +351,7 @@ class JudgeStore extends ChangeNotifier {
   /// On the prototype rubric (1–10, weights summing to 100) this is exactly
   /// Σ(value × weight) / 10. Null until EVERY criterion is filled — an empty
   /// criterion is never zero and a partial total is never shown.
-  double? calculateContestantTotal(int roundId, int contestantId) {
+  double? calculateContestantTotal(String roundId, String contestantId) {
     if (!isContestantComplete(roundId, contestantId)) return null;
     final data = _data[roundId]!;
     final criteria = data.criteria;
@@ -370,7 +365,7 @@ class JudgeStore extends ChangeNotifier {
     return sum * 100 / weightSum;
   }
 
-  StatusCounts countByStatus(int roundId) {
+  StatusCounts countByStatus(String roundId) {
     var scored = 0, draft = 0, notStarted = 0;
     final contestants = contestantsOf(roundId);
     for (final c in contestants) {
@@ -386,36 +381,36 @@ class JudgeStore extends ChangeNotifier {
     return StatusCounts(scored: scored, draft: draft, notStarted: notStarted, total: contestants.length);
   }
 
-  bool areAllContestantsComplete(int roundId) {
+  bool areAllContestantsComplete(String roundId) {
     final counts = countByStatus(roundId);
     return counts.total > 0 && counts.scored == counts.total;
   }
 
   /// Submitted = the server reports every contestant sheet as locked.
-  bool isSubmitted(int roundId) {
+  bool isSubmitted(String roundId) {
     final data = _data[roundId];
     if (data == null || data.contestants.isEmpty) return false;
     return data.contestants.every((c) => kLockedSheetStatuses.contains(data.sheetStatus[c.id]));
   }
 
-  bool isReopened(int roundId) => _data[roundId]?.sheetStatus.values.contains('reopened') ?? false;
+  bool isReopened(String roundId) => _data[roundId]?.sheetStatus.values.contains('reopened') ?? false;
 
-  bool isContestantLocked(int roundId, int contestantId) =>
+  bool isContestantLocked(String roundId, String contestantId) =>
       kLockedSheetStatuses.contains(_data[roundId]?.sheetStatus[contestantId]);
 
   /// Local time of this device's acknowledged submit (the API returns none).
-  DateTime? submittedAt(int roundId) => _drafts[roundId]?.submittedAt;
+  DateTime? submittedAt(String roundId) => _drafts[roundId]?.submittedAt;
 
-  bool canJudgeRound(int roundId) {
+  bool canJudgeRound(String roundId) {
     final round = getRound(roundId);
     return round != null && round.status == RoundStatus.open && !isSubmitted(roundId);
   }
 
-  String getNote(int roundId, int contestantId) => _data[roundId]?.notes[contestantId] ?? '';
+  String getNote(String roundId, String contestantId) => _data[roundId]?.notes[contestantId] ?? '';
 
-  bool hasPending(int roundId) => _drafts[roundId]?.dirty.isNotEmpty ?? false;
+  bool hasPending(String roundId) => _drafts[roundId]?.dirty.isNotEmpty ?? false;
 
-  SaveIndicator saveIndicator(int roundId, int contestantId) {
+  SaveIndicator saveIndicator(String roundId, String contestantId) {
     if (isContestantLocked(roundId, contestantId)) return SaveIndicator.locked;
     final dirty = _drafts[roundId]?.dirty.contains(contestantId) ?? false;
     if (!dirty) return SaveIndicator.saved;
@@ -435,13 +430,13 @@ class JudgeStore extends ChangeNotifier {
 
   /// Official result for Judges. The server enforces visibility (403 until
   /// the admin publishes it); the client never computes rankings.
-  Future<ResultSnapshot> fetchResults(int roundId) => _api.results(roundId);
+  Future<ResultSnapshot> fetchResults(String roundId) => _api.results(roundId);
 
   // -------------------------------------------------------------- commands
 
-  _Draft _draftFor(int roundId) => _drafts.putIfAbsent(roundId, _Draft.new);
+  _Draft _draftFor(String roundId) => _drafts.putIfAbsent(roundId, _Draft.new);
 
-  void _markDirty(int roundId, int contestantId) {
+  void _markDirty(String roundId, String contestantId) {
     final data = _data[roundId]!;
     final draft = _draftFor(roundId)
       ..dirty.add(contestantId)
@@ -455,17 +450,24 @@ class JudgeStore extends ChangeNotifier {
     _scheduleFlush(roundId);
   }
 
-  /// Writes one criterion value (null clears it). Returns false when the
-  /// sheet is locked or the round is not open.
-  bool setScore(int roundId, int contestantId, int criterionId, double? value) {
+  /// The server never accepts an empty `raw_score` (422 "field is required"),
+  /// so a value it already has can be changed but not cleared.
+  bool canClearScore(String roundId, String contestantId, String criterionId) =>
+      _data[roundId]?.server[contestantId]?[criterionId] == null;
+
+  /// Writes one criterion value (null clears it — only while the server has
+  /// none, see [canClearScore]). Returns false when the sheet is locked, the
+  /// round is not open, or the clear is not possible.
+  bool setScore(String roundId, String contestantId, String criterionId, double? value) {
     final data = _data[roundId];
     if (data == null || !canJudgeRound(roundId) || isContestantLocked(roundId, contestantId)) return false;
+    if (value == null && !canClearScore(roundId, contestantId, criterionId)) return false;
     data.scores.putIfAbsent(contestantId, () => {})[criterionId] = value;
     _markDirty(roundId, contestantId);
     return true;
   }
 
-  bool setNote(int roundId, int contestantId, String text) {
+  bool setNote(String roundId, String contestantId, String text) {
     final data = _data[roundId];
     if (data == null || !canJudgeRound(roundId) || isContestantLocked(roundId, contestantId)) return false;
     data.notes[contestantId] = text;
@@ -473,7 +475,7 @@ class JudgeStore extends ChangeNotifier {
     return true;
   }
 
-  void _scheduleFlush(int roundId, [Duration? delay]) {
+  void _scheduleFlush(String roundId, [Duration? delay]) {
     _flushTimers[roundId]?.cancel();
     _flushTimers[roundId] = Timer(delay ?? debounce, () => flush(roundId));
   }
@@ -481,7 +483,7 @@ class JudgeStore extends ChangeNotifier {
   /// Sends every dirty contestant of the round. Returns true when nothing is
   /// left pending. A save already in flight is awaited first (Submit right
   /// after an edit must not fail just because autosave is running).
-  Future<bool> flush(int roundId) async {
+  Future<bool> flush(String roundId) async {
     _flushTimers.remove(roundId)?.cancel();
     for (var running = _inFlight[roundId]; running != null; running = _inFlight[roundId]) {
       await running;
@@ -501,15 +503,16 @@ class JudgeStore extends ChangeNotifier {
     }
   }
 
-  Future<bool> _send(int roundId, RoundData data, _Draft draft) async {
-    final sentVersions = <int, int>{};
-    final sentValues = <int, Map<int, double?>>{};
+  Future<bool> _send(String roundId, RoundData data, _Draft draft) async {
+    final sentVersions = <String, int>{};
+    final sentValues = <String, Map<String, double?>>{};
     final payload = <ScoreInput>[];
     for (final cid in draft.dirty.toList()) {
       final note = data.notes[cid]?.trim();
       final rows = <ScoreInput>[
         for (final c in data.criteria)
-          if (data.scores[cid]?[c.id] != null || data.server[cid]?[c.id] != null)
+          // Only values: an empty raw_score is always rejected by the server.
+          if (data.scores[cid]?[c.id] != null)
             ScoreInput(
               contestantId: cid,
               criterionId: c.id,
@@ -570,7 +573,7 @@ class JudgeStore extends ChangeNotifier {
     return draft.dirty.isEmpty;
   }
 
-  Future<void> _reconcile(int roundId) async {
+  Future<void> _reconcile(String roundId) async {
     try {
       final data = _data[roundId];
       if (data == null) return;
@@ -595,7 +598,7 @@ class JudgeStore extends ChangeNotifier {
 
   /// Returns null on success, otherwise a message for the submit dialog.
   /// Completeness is re-checked here — the disabled button is not the guard.
-  Future<String?> submitJudging(int roundId) async {
+  Future<String?> submitJudging(String roundId) async {
     if (!canJudgeRound(roundId)) return 'This round is not open for scoring.';
     if (!areAllContestantsComplete(roundId)) return 'Complete all contestants before submitting.';
     if (!await flush(roundId)) {
