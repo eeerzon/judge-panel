@@ -51,6 +51,7 @@ class FakeAdminApi implements AdminApi {
   static Map<String, dynamic> eventJson(String id, String title, {bool active = true, Object? rounds}) => {
     'id_vote': id,
     'judul_vote': title,
+    'slug': title.toLowerCase().replaceAll(' ', '_'),
     'banner': null,
     'flag_aktif': active,
     'tanggal_buka_vote': '2026-09-24 10:06:00',
@@ -417,7 +418,7 @@ class FakeAdminApi implements AdminApi {
   Future<Map<String, dynamic>?> results(String id) async {
     gets.add('results $id');
     final status = _row(id)['status'];
-    if (status != 'closed' && status != 'finalized') return null;
+    if (status != 'open' && status != 'closed' && status != 'finalized') return null;
     final rows = roundContestantRows[id]!;
     final scored = [
       for (final (rc, ext) in rows) (rc, ext, _scores59[rc] ?? 60.0 - rc.codeUnits.fold<int>(0, (a, b) => a + b) % 7),
@@ -427,6 +428,9 @@ class FakeAdminApi implements AdminApi {
       'round_id': id,
       'computed_at': '2026-09-25T07:43:17.000000Z',
       'is_final': status == 'finalized',
+      // Open: a preview from submitted sheets — every contestant listed even
+      // before anyone submits (as the server does since 2026-10-16).
+      if (status == 'open') 'is_preview': true,
       'items': [
         for (final (i, (rc, ext, score)) in scored.indexed)
           {

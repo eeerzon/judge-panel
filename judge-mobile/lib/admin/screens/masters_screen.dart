@@ -47,13 +47,19 @@ class _MasterScreenState extends State<_MasterScreen> {
         direction: AdminLayout.tiny(context) ? Axis.vertical : Axis.horizontal,
         crossAxisAlignment: AdminLayout.tiny(context) ? CrossAxisAlignment.stretch : CrossAxisAlignment.center,
         children: [
-          Flexible(
-            fit: AdminLayout.tiny(context) ? FlexFit.loose : FlexFit.tight,
-            child: AdminSearchField(
+          // Stacked (tiny) inside the scrolling page: no flex child there.
+          if (AdminLayout.tiny(context))
+            AdminSearchField(
               hint: c ? 'Search name, number' : 'Search name, number, email, or phone',
               onChanged: (t) => setState(() => _term = t),
+            )
+          else
+            Expanded(
+              child: AdminSearchField(
+                hint: c ? 'Search name, number' : 'Search name, number, email, or phone',
+                onChanged: (t) => setState(() => _term = t),
+              ),
             ),
-          ),
           const SizedBox(width: 10, height: 10),
           SizedBox(
             width: AdminLayout.tiny(context) ? null : 200,

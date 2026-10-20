@@ -44,6 +44,7 @@ void main() {
 
     expect(s.calculateRoundResults('1').available, isFalse); // still open
     expect(s.closeRound('1'), isTrue);
+    expect(s.isResultVisible('1'), isTrue); // Close Round turns Judge Results Visibility on
 
     final result = s.calculateRoundResults('1');
     expect(result.available, isTrue);
@@ -57,10 +58,11 @@ void main() {
       expect(s.finalizeResults('1'), isFalse);
       expect(s.acknowledgeTie('1'), isTrue);
     }
-    expect(s.setResultVisibility('1', true), isFalse); // not finalized yet
+    expect(s.setResultVisibility('1', false), isTrue); // adjustable once closed
+    expect(s.isResultVisible('1'), isFalse);
     expect(s.finalizeResults('1'), isTrue);
     expect(s.getRound('1')!.status, 'finalized');
-    expect(s.isResultVisible('1'), isFalse); // default OFF
+    expect(s.isResultVisible('1'), isFalse); // kept off; event default OFF
     expect(s.setResultVisibility('1', true), isTrue);
     expect(s.isResultVisible('1'), isTrue);
 

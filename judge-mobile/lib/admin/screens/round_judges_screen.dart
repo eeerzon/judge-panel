@@ -53,7 +53,9 @@ class AdminRoundJudgesScreen extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(14),
-              child: Column(children: [
+              // Stretch: in the stacked (compact) card the rows would
+              // otherwise shrink to their content and centre.
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (judges.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(8),

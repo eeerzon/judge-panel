@@ -5,6 +5,7 @@
 // NOTE: the token is kept in SharedPreferences for now. Move it to secure
 // storage (Keychain/Keystore) during the production security review.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -88,8 +89,16 @@ class SessionStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Ends the session on the device at once; a user Log Out also revokes the
+  /// token on the server (`POST /judge/auth/logout`), so a copied token stops
+  /// working too. Not when the server already rejected it ([reason]) or it
+  /// has expired. Offline, the token stays valid until it expires.
   Future<void> logout({String? reason}) async {
+    final revoke = reason == null && hasJudgeSession ? _token : null;
     _clear();
+    if (revoke != null) {
+      unawaited(_api.logout(revoke).catchError((Object _) {}));
+    }
     expiredMessage = reason;
     try {
       await _prefs?.remove(storageKey);

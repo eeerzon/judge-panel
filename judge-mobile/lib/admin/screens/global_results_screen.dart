@@ -65,7 +65,7 @@ class AdminResultsScreen extends StatelessWidget {
                         : status == 'provisional'
                             ? 'Provisional Admin Result'
                             : round.status == 'open'
-                                ? 'Unavailable while judging is open'
+                                ? 'Appears once a judge submits'
                                 : 'No results yet',
                     style: ts(13, color: AppColors.textSecondary),
                   ),

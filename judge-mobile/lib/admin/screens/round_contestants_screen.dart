@@ -234,7 +234,7 @@ class _AssignmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tiny = AdminLayout.tiny(context);
-    final photoSize = tiny ? 92.0 : 112.0;
+    final photoSize = tiny ? 64.0 : 112.0;
     final chip = AssignChip(assigned: assigned);
     final select = onSelect;
     // The whole card toggles the checkbox (not only the small box).
@@ -245,8 +245,8 @@ class _AssignmentCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: select == null ? null : () => select(!selected),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 138),
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+          constraints: BoxConstraints(minHeight: tiny ? 0 : 138),
+          padding: EdgeInsets.symmetric(horizontal: tiny ? 10 : 15, vertical: 13),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.border),
@@ -254,7 +254,7 @@ class _AssignmentCard extends StatelessWidget {
           child: Row(
             children: [
               AdminCheckbox(value: selected, onChanged: onSelect),
-              const SizedBox(width: 10),
+              SizedBox(width: tiny ? 6 : 10),
               Container(
                 width: photoSize,
                 height: photoSize,
@@ -265,7 +265,7 @@ class _AssignmentCard extends StatelessWidget {
                 ),
                 child: AdminPhoto(photo: contestant.photo, name: contestant.name, fit: BoxFit.contain),
               ),
-              const SizedBox(width: 17),
+              SizedBox(width: tiny ? 12 : 17),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

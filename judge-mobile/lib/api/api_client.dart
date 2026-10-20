@@ -13,8 +13,13 @@ import 'package:http/http.dart' as http;
 /// Override per build: `--dart-define=KREEN_API_BASE_URL=https://.../api/v1`
 const kApiBaseUrl = String.fromEnvironment(
   'KREEN_API_BASE_URL',
-  // defaultValue: 'https://newvote.kreenconnect.com/api/v1',
-  defaultValue: 'https://vote.kreen.asia/api/v1',
+  defaultValue: 'https://newvote.kreenconnect.com/api/v1', //staging
+  // defaultValue: 'https://vote.kreen.asia/api/v1', //live
+);
+
+const kPublicResultsBaseUrl = String.fromEnvironment(
+  'KREEN_PUBLIC_RESULTS_URL', 
+  defaultValue: 'https://judge.kreen.asia'
 );
 
 class ApiException implements Exception {
@@ -62,6 +67,11 @@ class ApiClient {
 
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) async => (await _send('POST', path, body))?['data'];
 
+  /// POST with [token] instead of the session's (e.g. logout, sent after the
+  /// session was already cleared on the device).
+  Future<dynamic> postWithToken(String path, String token) async =>
+      (await _send('POST', path, null, token))?['data'];
+
   Future<dynamic> patch(String path, [Map<String, dynamic>? body]) async => (await _send('PATCH', path, body))?['data'];
 
   Future<dynamic> put(String path, [Map<String, dynamic>? body]) async => (await _send('PUT', path, body))?['data'];
@@ -69,8 +79,8 @@ class ApiClient {
   Future<dynamic> delete(String path) async => (await _send('DELETE', path))?['data'];
 
   /// Returns the decoded body of a successful response.
-  Future<Map<String, dynamic>?> _send(String method, String path, [Map<String, dynamic>? body]) async {
-    final token = tokenProvider();
+  Future<Map<String, dynamic>?> _send(String method, String path, [Map<String, dynamic>? body, String? tokenOverride]) async {
+    final token = tokenOverride ?? tokenProvider();
     final request = http.Request(method, Uri.parse('$baseUrl$path'))
       ..headers.addAll({
         'Accept': 'application/json',

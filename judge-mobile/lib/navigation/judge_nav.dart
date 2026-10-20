@@ -10,6 +10,8 @@ import 'package:kreen_judge_mobile/screens/splash_logo_screen.dart';
 
 import '../admin/admin_nav.dart';
 import '../admin/admin_scope.dart';
+import '../public/public_results.dart';
+import '../public/public_results_screen.dart';
 import '../screens/contestants_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/mode_selector_screen.dart';
@@ -85,6 +87,9 @@ class JudgeNav {
       transitionDuration: const Duration(milliseconds: 160),
       reverseTransitionDuration: const Duration(milliseconds: 120),
       pageBuilder: (context, _, _) {
+        // Public results link (no login): the page sets its own event theme.
+        final public = parsePublicResultsRoute(settings.name);
+        if (public != null) return PublicResultsScreen(slug: public.slug, orderNo: public.orderNo);
         // One page at a time (every navigation replaces the route), so the
         // page's palette is set right before it builds.
         final light = context.getInheritedWidgetOfExactType<AppearanceScope>()?.notifier?.light ?? false;

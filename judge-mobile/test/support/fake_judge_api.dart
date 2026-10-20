@@ -86,6 +86,12 @@ class FakeJudgeApi implements JudgeApi {
     }
   }
 
+  /// Tokens revoked with `POST /judge/auth/logout`.
+  final List<String> loggedOut = [];
+
+  @override
+  Future<void> logout(String token) async => loggedOut.add(token);
+
   @override
   Future<LoginResult> login(String email, String password) async {
     if (password != 'password123') throw const ApiException('Email atau password salah.', statusCode: 401);

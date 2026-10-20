@@ -5,6 +5,7 @@
 // Sizes follow entry.css, including its cascade quirk: `.entry-body button
 // { font: inherit }` out-ranks `.entry-btn`, so "Sign In" renders 16px/400.
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
@@ -18,19 +19,6 @@ import '../widgets/common.dart';
 /// server — one owner (Mode Selector → Admin / Judge) and judges (password
 /// `password123`). Set to false — or remove the list — before a production
 /// build.
-const kShowDemoAccounts = false; //true, false
-
-const _demoPassword = 'password123';
-/// (email, password, label suffix)
-const _demoAccounts = [
-  ('sandikafamily3@gmail.com', 'namakau123', ' (Admin)'),
-  ('admin.free@test.com', _demoPassword, ''),
-  ('juri1@test.com', _demoPassword, ''),
-  ('juri2@test.com', _demoPassword, ''),
-  ('juribaru@test.com', _demoPassword, ''),
-  ('juri1.free@test.com', _demoPassword, ''),
-  ('juri2.free@test.com', _demoPassword, ''),
-];
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -101,14 +89,27 @@ class _LoginScreenState extends State<LoginScreen> {
           // Panel up to 480 (min 320 on small screens), intro keeps ≥ 260.
           final panelWidth = (inner - gap - 260).clamp(320.0, 480.0);
 
-          final Widget content = Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(child: _Intro(vw: vw)),
-              SizedBox(width: gap),
-              SizedBox(width: panelWidth, child: _panel(vw)),
-            ],
-          );
+          // Web on a phone browser (portrait, narrow): the prototype's stacked
+          // ≤760px variant — intro above the Sign-in panel. iOS / Android
+          // stay landscape and keep the Row.
+          final stacked = kIsWeb && width <= 760;
+          final Widget content = stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Intro(vw: vw, compact: true),
+                    const SizedBox(height: 32),
+                    _panel(vw),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: _Intro(vw: vw)),
+                    SizedBox(width: gap),
+                    SizedBox(width: panelWidth, child: _panel(vw)),
+                  ],
+                );
 
           return Stack(children: [
             SingleChildScrollView(
@@ -118,7 +119,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 1180),
                     child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: padX, vertical: 56),
+                      padding: stacked
+                          ? const EdgeInsets.fromLTRB(20, 72, 20, 40)
+                          : EdgeInsets.symmetric(horizontal: padX, vertical: 56),
                       child: content,
                     ),
                   ),
@@ -206,14 +209,6 @@ class _LoginScreenState extends State<LoginScreen> {
               decoration: deco('Enter password'),
               validator: required,
             ),
-            const SizedBox(height: 14),
-            // .entry-note
-            Text(
-              kShowDemoAccounts
-                  ? 'Demo access uses test accounts (judges: password $_demoPassword).'
-                  : 'Use the account provided by the event admin.',
-              style: ts(12, color: AppColors.textSecondary, height: 1.45),
-            ),
             const SizedBox(height: 18),
             if (_error != null) ...[
               Semantics(
@@ -234,21 +229,6 @@ class _LoginScreenState extends State<LoginScreen> {
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.symmetric(horizontal: 16),
             ),
-            if (kShowDemoAccounts) ...[
-              const SizedBox(height: 30),
-              Divider(color: AppColors.border, height: 1, thickness: 1),
-              const SizedBox(height: 20),
-              Text('DEMO ACCESS',
-                  style: ts(11, weight: FontWeight.w800, color: AppColors.textSecondary, letterSpacingEm: 0.14)),
-              const SizedBox(height: 8),
-              for (var i = 0; i < _demoAccounts.length; i++) ...[
-                if (i > 0) const SizedBox(height: 2),
-                _DemoButton(
-                  label: 'Continue as ${_demoAccounts[i].$1}${_demoAccounts[i].$3}',
-                  onTap: _busy ? null : () => _signIn(_demoAccounts[i].$1, _demoAccounts[i].$2),
-                ),
-              ],
-            ],
           ],
         ),
       ),
@@ -258,13 +238,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
 /// `.entry-intro` — left column of the Row.
 class _Intro extends StatelessWidget {
-  const _Intro({required this.vw});
+  const _Intro({required this.vw, this.compact = false});
   final double vw;
+
+  /// Phone browser (stacked layout): smaller heading.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     // h1: clamp(38px, 4.4vw, 62px)
-    final h1 = (vw * 0.044).clamp(38.0, 62.0);
+    final h1 = compact ? (vw * 0.09).clamp(30.0, 40.0) : (vw * 0.044).clamp(38.0, 62.0);
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 550),
       child: Column(
@@ -272,7 +255,7 @@ class _Intro extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const KreenMark(),
-          const SizedBox(height: 28),
+          SizedBox(height: compact ? 20 : 28),
           Text('KREEN JUDGING',
               style: ts(12, weight: FontWeight.w800, color: AppColors.accentBright, letterSpacingEm: 0.17)),
           const SizedBox(height: 14),
@@ -288,12 +271,12 @@ class _Intro extends StatelessWidget {
               style: ts(16, color: AppColors.textSecondary, height: 1.6),
             ),
           ),
-          const SizedBox(height: 46),
-          Container(
-            padding: const EdgeInsets.only(top: 16),
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
-            child: Text('King & Queen of the Pacific · 2026', style: ts(13, color: AppColors.textSecondary)),
-          ),
+          // const SizedBox(height: 46),
+          // Container(
+          //   padding: const EdgeInsets.only(top: 16),
+          //   decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
+          //   child: Text('King & Queen of the Pacific · 2026', style: ts(13, color: AppColors.textSecondary)),
+          // ),
         ],
       ),
     );
@@ -316,27 +299,6 @@ class KreenMark extends StatelessWidget {
         border: Border.all(color: AppColors.accentDeep),
       ),
       child: Text('K', style: ts(22, weight: FontWeight.w800, color: AppColors.accentBright)),
-    );
-  }
-}
-
-/// `.entry-demo button` — 42px text row, 13px / 650.
-class _DemoButton extends StatelessWidget {
-  const _DemoButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      pressedScale: 0.99,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 42),
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Text(label, style: ts(13, weight: FontWeight.w600, color: AppColors.textSecondary)),
-      ),
     );
   }
 }

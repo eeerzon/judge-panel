@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kreen_judge_mobile/admin/admin_models.dart';
 import 'package:kreen_judge_mobile/admin/admin_nav.dart';
@@ -790,5 +791,101 @@ void main() {
     expect(f1.details, 'Nama Tambahan 1 · Profesi / Aktivitas 1 · 25 yrs');
     final f11 = s.contestants.firstWhere((c) => c.externalId == 'f11'); // no extra data in the API
     expect(f11.details, '');
+  });
+
+  testWidgets('Rounds: Copy Public Link copies the latest opened round link, only once a round is opened', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') copied = (call.arguments as Map)['text'] as String?;
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+
+    Future<void> openRounds(FakeAdminApi api, [String route = AdminRoutes.rounds]) async {
+      final judgeApi = FakeJudgeApi();
+      final session = SessionStore.memory(judgeApi);
+      await session.login('owner@test.com', 'password123');
+      final admin = AdminStore.memory(api: api);
+      await admin.openEvent(FakeAdminApi.eventId);
+      await tester.pumpWidget(AppScope(
+        judge: JudgeStore(judgeApi),
+        session: session,
+        admin: admin,
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          onGenerateRoute: JudgeNav.onGenerateRoute,
+          onGenerateInitialRoutes: (_) => [JudgeNav.onGenerateRoute(RouteSettings(name: route))],
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    // TOP 10 finalized, TOP 5 open → the link of TOP 5 (order 2).
+    await openRounds(FakeAdminApi());
+    final copy = find.text('Copy Public Link');
+    expect(tester.getRect(copy).right, lessThan(tester.getRect(find.text('+ Create Round')).left));
+    await tester.tap(copy);
+    await tester.pumpAndSettle();
+    expect(copied, 'https://judge.kreen.asia/#/testing_laravel_13_final/round_2');
+    expect(find.textContaining('Public link for TOP 5 copied'), findsOneWidget);
+
+    // Two finalized rounds (+ a draft) → a menu picks the round to copy.
+    final two = FakeAdminApi();
+    two.roundRows[1]['status'] = 'finalized';
+    two.roundRows.add(FakeAdminApi.roundJson('61', 'FINAL', 3, 'draft'));
+    await openRounds(two);
+    copied = null;
+    await tester.tap(find.text('Copy Public Link'));
+    await tester.pumpAndSettle();
+    expect(copied, isNull); // nothing copied before a choice
+    Finder item(String text) => find.descendant(of: find.byType(PopupMenuItem<AdminRound>), matching: find.text(text));
+    expect(item('01 · TOP 10'), findsOneWidget);
+    expect(item('02 · TOP 5'), findsOneWidget);
+    expect(item('03 · FINAL'), findsNothing); // draft: no public page
+    await tester.tap(item('01 · TOP 10'));
+    await tester.pumpAndSettle();
+    expect(copied, 'https://judge.kreen.asia/#/testing_laravel_13_final/round_1');
+
+    // Overview has the same button (same menu).
+    await openRounds(two, AdminRoutes.overview);
+    await tester.tap(find.text('Copy Public Link'));
+    await tester.pumpAndSettle();
+    await tester.tap(item('02 · TOP 5'));
+    await tester.pumpAndSettle();
+    expect(copied, 'https://judge.kreen.asia/#/testing_laravel_13_final/round_2');
+
+    // Only draft rounds → no public page yet, no button.
+    final drafts = FakeAdminApi();
+    for (final r in drafts.roundRows) {
+      r['status'] = 'draft';
+    }
+    await openRounds(drafts);
+    expect(find.text('Copy Public Link'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('open round: results once a judge has submitted; Close Round turns Judge Results Visibility on', () async {
+    final api = FakeAdminApi();
+    final admin = AdminStore.memory(api: api);
+    await admin.openEvent(FakeAdminApi.eventId);
+    expect(admin.getRound('60')!.status, 'open');
+    // The server already sends a preview (all 0), but nobody has submitted.
+    final none = admin.calculateRoundResults('60');
+    expect((none.available, none.reason), (false, 'Results appear here once at least one judge has submitted.'));
+
+    api.sheets['60']!['281']!['59'] = 'submitted'; // a judge submitted
+    expect(await admin.loadRound('60', only: {RoundPart.monitoring, RoundPart.results}), isNull);
+    final soFar = admin.calculateRoundResults('60');
+    expect((soFar.available, soFar.finalized), (true, false));
+    expect(soFar.items, isNotEmpty);
+    expect(admin.isResultVisible('60'), isFalse);
+
+    expect(await admin.closeRoundAction('60'), isNull);
+    expect(api.roundCalls, containsAllInOrder(['closed 60', 'visibility 60 true']));
+    expect(admin.getRound('60')!.status, 'closed');
+    expect(admin.isResultVisible('60'), isTrue);
   });
 }

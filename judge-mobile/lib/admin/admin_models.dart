@@ -102,10 +102,14 @@ class AdminEvent {
     this.grandFinalOn,
     this.roundCounts = const RoundCounts(),
     this.totalFinalists,
+    this.slug,
   });
 
   final String id; // id_vote
   final String title;
+
+  /// Public results link: `#/<slug>/round_<n>` (event detail only).
+  final String? slug;
   final String? banner;
   final bool active;
   final DateTime? votingOpensAt, votingClosesAt, grandFinalOn;
@@ -133,6 +137,7 @@ class AdminEvent {
             )
           : RoundCounts.fromApi(rounds),
       totalFinalists: j['total_finalis'] == null ? null : _int(j['total_finalis']),
+      slug: _text(j['slug']),
     );
   }
 }

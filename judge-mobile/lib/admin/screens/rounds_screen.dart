@@ -9,6 +9,7 @@ import '../admin_scope.dart';
 import '../widgets/admin_rows.dart';
 import '../widgets/admin_shell.dart';
 import '../widgets/admin_ui.dart';
+import '../widgets/copy_public_link.dart';
 import 'overview_screen.dart' show NoRoundsCard, showCreateRound;
 
 class AdminRoundsScreen extends StatelessWidget {
@@ -49,6 +50,7 @@ class AdminRoundsScreen extends StatelessWidget {
         title: 'Rounds',
         description: 'Operational status and configuration readiness for every judging round.',
         actions: [
+          if (CopyPublicLinkButton.available(admin)) const CopyPublicLinkButton(),
           AdminBtn('+ Create Round', variant: AdminBtnVariant.primary, onTap: () => showCreateRound(context)),
         ],
       ),

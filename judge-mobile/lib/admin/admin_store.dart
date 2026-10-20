@@ -340,12 +340,14 @@ class AdminStore extends ChangeNotifier {
       final withMeta = wants(RoundPart.meta) || wants(RoundPart.results) || wants(RoundPart.advancement);
       final round = withMeta ? await api.round(roundId) : getRound(roundId)!;
       final done = round.status == 'closed' || round.status == 'finalized';
+      // While open the server sends a result once a judge has submitted
+      // (until then `data: null`), so open rounds ask too.
       final fetched = await Future.wait<Object?>([
         wants(RoundPart.contestants) ? api.roundContestants(roundId) : Future<Object?>.value(),
         wants(RoundPart.judges) ? api.roundJudges(roundId) : Future<Object?>.value(),
         wants(RoundPart.criteria) ? api.criteria(roundId) : Future<Object?>.value(),
         wants(RoundPart.monitoring) ? api.monitoring(roundId) : Future<Object?>.value(),
-        wants(RoundPart.results) && done ? api.results(roundId) : Future<Object?>.value(),
+        wants(RoundPart.results) && (done || round.status == 'open') ? api.results(roundId) : Future<Object?>.value(),
         wants(RoundPart.advancement) && round.status == 'finalized'
             ? api.advancement(roundId)
             : Future<Object?>.value(),
@@ -743,9 +745,29 @@ class AdminStore extends ChangeNotifier {
       ? _remote((a) => a.openRound(id), roundId: id, parts: _statusParts)
       : (openRound(id) ? null : 'The round is not ready to open.');
 
-  Future<String?> closeRoundAction(String id) async => connected
-      ? _remote((a) => a.closeRound(id), roundId: id, parts: _statusParts)
-      : (closeRound(id) ? null : 'This action is not available now. Refresh and check round readiness.');
+  /// Closing also turns Judge Results Visibility on.
+  Future<String?> closeRoundAction(String id) async {
+    if (!connected) {
+      return closeRound(id) ? null : 'This action is not available now. Refresh and check round readiness.';
+    }
+    String? visibilityError;
+    final error = await _remote(
+      (a) async {
+        await a.closeRound(id);
+        try {
+          await a.setResultVisibility(id, true);
+        } on ApiException catch (e) {
+          visibilityError = e.message; // the round is closed either way
+        }
+      },
+      roundId: id,
+      parts: _statusParts,
+    );
+    return error ??
+        (visibilityError == null
+            ? null
+            : 'Round closed, but Judge Results Visibility could not be turned on: $visibilityError');
+  }
 
   Future<String?> finalizeAction(String id) async => connected
       ? _remote((a) => a.finalizeRound(id), roundId: id, parts: _statusParts)
@@ -753,7 +775,7 @@ class AdminStore extends ChangeNotifier {
 
   Future<String?> setResultVisibilityAction(String id, bool visible) async => connected
       ? _remote((a) => a.setResultVisibility(id, visible), roundId: id, parts: const {RoundPart.meta})
-      : (setResultVisibility(id, visible) ? null : 'Visibility can change only after finalization.');
+      : (setResultVisibility(id, visible) ? null : 'Visibility can change only once the round is closed.');
 
   Future<String?> updateRoundAction(
     String id, {
@@ -1838,6 +1860,7 @@ class AdminStore extends ChangeNotifier {
   bool closeRound(String roundId) {
     if (!getRoundReadiness(roundId).readyToClose) return false;
     getRound(roundId)!.status = 'closed';
+    _visibility[roundId] = true; // closing turns Judge Results Visibility on
     _audit('close', roundId);
     _save();
     return true;
@@ -1970,11 +1993,16 @@ class AdminStore extends ChangeNotifier {
       return _snapshots[roundId] ?? const RoundResult.unavailable('Finalized result snapshot is missing.');
     }
     if (connected && _loadedRounds.contains(roundId)) {
-      return round.status == 'closed'
-          ? _provisional[roundId] ?? const RoundResult.unavailable('The server has not calculated this result yet.')
-          : const RoundResult.unavailable(
-              'Results are unavailable while judging is open. Close the round after all required judges have submitted.',
-            );
+      return switch (round.status) {
+        'closed' => _provisional[roundId] ?? const RoundResult.unavailable('The server has not calculated this result yet.'),
+        // Open: the server's preview (`is_preview`) counts submitted sheets
+        // only, but lists every contestant at 0 until someone submits — so
+        // it shows once at least one judge has submitted (monitoring).
+        'open' => _provisional[roundId] != null && _anySubmitted(roundId)
+            ? _provisional[roundId]!
+            : const RoundResult.unavailable('Results appear here once at least one judge has submitted.'),
+        _ => const RoundResult.unavailable('Results appear here once the round is open and a judge has submitted.'),
+      };
     }
     if (round.status != 'closed') {
       return const RoundResult.unavailable(
@@ -1983,6 +2011,9 @@ class AdminStore extends ChangeNotifier {
     }
     return _computeResults(roundId);
   }
+
+  bool _anySubmitted(String roundId) =>
+      _progress[roundId]?.values.any((p) => p.submittedSheetIds.isNotEmpty) ?? false;
 
   RoundResult _computeResults(String roundId) {
     final ready = getRoundReadiness(roundId);
@@ -2079,7 +2110,10 @@ class AdminStore extends ChangeNotifier {
   }
 
   RoundResult? getResultSnapshot(String roundId) => _snapshots[roundId];
-  bool isResultVisible(String roundId) => getRoundResultStatus(roundId) == 'finalized' && _visibility[roundId] == true;
+  /// On from Close Round (which turns it on) until the admin turns it off.
+  bool isResultVisible(String roundId) =>
+      (getRound(roundId)?.status == 'closed' || getRoundResultStatus(roundId) == 'finalized') &&
+      _visibility[roundId] == true;
   bool isTieAcknowledged(String roundId) => _tieAcknowledged[roundId] == true;
 
   bool acknowledgeTie(String roundId) {
@@ -2093,7 +2127,8 @@ class AdminStore extends ChangeNotifier {
   /// Audit "results calculated" once per round (when first viewed).
   void noteResultsCalculated(String roundId) {
     final result = calculateRoundResults(roundId);
-    if (!result.available || result.finalized) return;
+    // Open-round results are not the calculated (closed) result yet.
+    if (!result.available || result.finalized || getRound(roundId)?.status == 'open') return;
     if (!_auditEvents.any((e) => e.type == 'results-calculated' && e.roundId == roundId)) {
       _audit('results-calculated', roundId);
       WidgetsBinding.instance.addPostFrameCallback((_) => _save());
@@ -2122,7 +2157,8 @@ class AdminStore extends ChangeNotifier {
       finalizedAt: DateTime.now(),
       finalizedBy: actor,
     );
-    _visibility[roundId] = eventSettings.resultVisibilityAfterFinalization;
+    // Already on since Close Round; otherwise the event default.
+    _visibility[roundId] = (_visibility[roundId] ?? false) || eventSettings.resultVisibilityAfterFinalization;
     round.status = 'finalized';
     _audit('finalize', roundId);
     _save();
@@ -2130,7 +2166,7 @@ class AdminStore extends ChangeNotifier {
   }
 
   bool setResultVisibility(String roundId, bool visible) {
-    if (getRoundResultStatus(roundId) != 'finalized') return false;
+    if (getRound(roundId)?.status != 'closed' && getRoundResultStatus(roundId) != 'finalized') return false;
     if (_visibility[roundId] == visible) return true;
     _visibility[roundId] = visible;
     _audit(visible ? 'visibility-on' : 'visibility-off', roundId);

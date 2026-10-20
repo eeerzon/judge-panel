@@ -65,6 +65,17 @@ class _State extends State<AdminAdvancementScreen> {
     final needsReason = cutoffTie || ids.any((id) => !_defaults.contains(id)) || ids.length != _defaults.length;
     final tiny = AdminLayout.tiny(context);
 
+    final intro = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      AdminEyebrow('${source.name} → ${target.name}'),
+      const SizedBox(height: 4),
+      Text('Choose $count advancing contestants', style: ts(17, weight: FontWeight.w700)),
+      const SizedBox(height: 8),
+      Text(
+        'Top $count is preselected from the finalized result. Review before confirming; the official result will not change.',
+        style: ts(13, color: AppColors.textSecondary),
+      ),
+    ]);
+
     return RoundWorkspace(
       roundId: roundId,
       activeTab: RoundTab.results,
@@ -81,19 +92,8 @@ class _State extends State<AdminAdvancementScreen> {
             direction: tiny ? Axis.vertical : Axis.horizontal,
             crossAxisAlignment: tiny ? CrossAxisAlignment.start : CrossAxisAlignment.center,
             children: [
-              Flexible(
-                fit: tiny ? FlexFit.loose : FlexFit.tight,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  AdminEyebrow('${source.name} → ${target.name}'),
-                  const SizedBox(height: 4),
-                  Text('Choose $count advancing contestants', style: ts(17, weight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Top $count is preselected from the finalized result. Review before confirming; the official result will not change.',
-                    style: ts(13, color: AppColors.textSecondary),
-                  ),
-                ]),
-              ),
+              // Stacked (tiny) inside the scrolling page: no flex child there.
+              if (tiny) intro else Expanded(child: intro),
               SizedBox(width: tiny ? 0 : 20, height: tiny ? 14 : 0),
               Text('${ids.length} / $count selected',
                   style: ts(20, weight: FontWeight.w700, color: AppColors.accentBright, tabular: true)),

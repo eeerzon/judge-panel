@@ -36,7 +36,7 @@ class AdminRoundResultsScreen extends StatelessWidget {
             action: AdminBtn('View Round Overview', onTap: () => AdminNav.round(context, AdminRoutes.roundOverview, roundId)),
           ),
           _AdvancementPanel(store: admin, round: round, finalized: false),
-          _VisibilityControl(store: admin, roundId: roundId, finalized: false),
+          _VisibilityControl(store: admin, roundId: roundId, editable: round.status == 'closed'),
         ],
       );
     }
@@ -49,6 +49,9 @@ class AdminRoundResultsScreen extends StatelessWidget {
     }
     final rawMax = admin.rawMaxScore(roundId);
     final finalized = result.finalized;
+    // Open: results so far (judges who submitted); Finalize needs Close Round.
+    final open = round.status == 'open';
+    final ready = admin.getRoundReadiness(roundId);
     final tieBlocked = result.hasTie && !admin.isTieAcknowledged(roundId);
     final narrow = AdminLayout.narrow(context);
 
@@ -68,18 +71,33 @@ class AdminRoundResultsScreen extends StatelessWidget {
             runSpacing: 14,
             children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                AdminEyebrow(finalized ? 'Finalized Official Result' : 'Provisional Admin Result'),
+                AdminEyebrow(finalized
+                    ? 'Finalized Official Result'
+                    : open
+                    ? 'Live Provisional Result'
+                    : 'Provisional Admin Result'),
                 const SizedBox(height: 7),
-                Text(finalized ? 'Official results locked' : 'Results calculated', style: ts(19, weight: FontWeight.w700)),
+                Text(
+                  finalized
+                      ? 'Official results locked'
+                      : open
+                      ? 'Results so far'
+                      : 'Results calculated',
+                  style: ts(19, weight: FontWeight.w700),
+                ),
                 const SizedBox(height: 5),
                 Text(
-                  '${result.eligibleJudgeCount} eligible judges · ${result.contestantCount} contestants · '
-                  '${finalized ? (result.finalizedBy == null ? 'Finalized' : 'Finalized by ${result.finalizedBy}') : 'Not finalized yet'}',
+                  open
+                      ? 'Submitted judges only · ${result.contestantCount} contestants · Close the round to finalize'
+                      : '${result.eligibleJudgeCount} eligible judges · ${result.contestantCount} contestants · '
+                            '${finalized ? (result.finalizedBy == null ? 'Finalized' : 'Finalized by ${result.finalizedBy}') : 'Not finalized yet'}',
                   style: ts(13, color: AppColors.textSecondary),
                 ),
               ]),
               finalized
                   ? const AdminStatus('finalized')
+                  : open
+                  ? const AdminStatus('open')
                   : AdminBtn('Finalize Results',
                       variant: AdminBtnVariant.primary, onTap: tieBlocked ? null : () => _finalize(context, admin, round)),
             ],
@@ -91,7 +109,10 @@ class AdminRoundResultsScreen extends StatelessWidget {
         AdminStatGrid([
           AdminStatCard(value: '${result.contestantCount}', label: 'Contestants'),
           AdminStatCard(value: '${result.eligibleJudgeCount}', label: 'Eligible Judges'),
-          const AdminStatCard(value: '100%', label: 'Required submissions'),
+          AdminStatCard(
+            value: open ? '${ready.requiredSubmitted} / ${ready.requiredJudges}' : '100%',
+            label: 'Required submissions',
+          ),
           AdminStatCard(valueWidget: Align(alignment: Alignment.centerLeft, child: AdminStatus(round.status)), label: 'Round status'),
         ]),
         if (result.hasTie) ...[
@@ -103,7 +124,7 @@ class AdminRoundResultsScreen extends StatelessWidget {
                 const Text('Acknowledged before finalization.')
               else if (admin.isTieAcknowledged(roundId))
                 Text('Tie acknowledged.', style: ts(13, weight: FontWeight.w700, color: AppColors.statusDraftColor))
-              else
+              else if (!open) // acknowledged before Finalize, after Close Round
                 AdminBtn('Acknowledge Tie', small: true, onTap: () => admin.acknowledgeTie(roundId)),
             ]),
           ),
@@ -125,7 +146,7 @@ class AdminRoundResultsScreen extends StatelessWidget {
           ],
         ),
         _AdvancementPanel(store: admin, round: round, finalized: finalized),
-        _VisibilityControl(store: admin, roundId: roundId, finalized: finalized),
+        _VisibilityControl(store: admin, roundId: roundId, editable: round.status == 'closed' || finalized),
       ],
     );
   }
@@ -298,10 +319,12 @@ class _AdvancementPanel extends StatelessWidget {
 }
 
 class _VisibilityControl extends StatelessWidget {
-  const _VisibilityControl({required this.store, required this.roundId, required this.finalized});
+  const _VisibilityControl({required this.store, required this.roundId, required this.editable});
   final AdminStore store;
   final String roundId;
-  final bool finalized;
+
+  /// From Close Round on (Close Round turns it on).
+  final bool editable;
 
   @override
   Widget build(BuildContext context) {
@@ -309,11 +332,11 @@ class _VisibilityControl extends StatelessWidget {
     return _SidePanel(
       title: 'Judge Results Visibility',
       body: 'When enabled, judges assigned to this round can view the official ranking and combined scores.',
-      note: finalized ? (on ? 'Visible to judges' : 'Hidden from judges') : 'Judges can only view results after finalization.',
+      note: editable ? (on ? 'Visible to judges' : 'Hidden from judges') : 'Turns on automatically when the round is closed.',
       trailing: AdminToggle(
         on: on,
         semanticLabel: 'Allow Judges to View Results',
-        onChanged: finalized
+        onChanged: editable
             ? (v) async {
                 final messenger = ScaffoldMessenger.of(context);
                 final error = await store.setResultVisibilityAction(roundId, v);

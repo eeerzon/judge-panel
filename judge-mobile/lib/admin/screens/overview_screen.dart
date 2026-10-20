@@ -9,6 +9,7 @@ import '../admin_scope.dart';
 import '../widgets/admin_rows.dart';
 import '../widgets/admin_shell.dart';
 import '../widgets/admin_ui.dart';
+import '../widgets/copy_public_link.dart';
 
 class AdminOverviewScreen extends StatelessWidget {
   const AdminOverviewScreen({super.key});
@@ -17,11 +18,15 @@ class AdminOverviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final admin = AdminScope.of(context);
     final active = admin.activeRound;
+
     final header = AdminPageHeader(
       eyebrow: 'Event overview',
       title: 'Judging Overview',
       description: 'A calm operational view of your rounds, assignments, and judging progress.',
-      actions: [AdminBtn('+ Create Round', variant: AdminBtnVariant.primary, onTap: () => showCreateRound(context))],
+      actions: [
+        if (CopyPublicLinkButton.available(admin)) const CopyPublicLinkButton(),
+        AdminBtn('+ Create Round', variant: AdminBtnVariant.primary, onTap: () => showCreateRound(context))
+      ],
     );
     if (active == null) {
       return AdminShell(activeNav: 'overview', children: [header, const NoRoundsCard()]);

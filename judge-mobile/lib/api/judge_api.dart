@@ -19,6 +19,9 @@ class LoginResult {
 
 abstract class JudgeApi {
   Future<LoginResult> login(String email, String password);
+
+  /// `POST /judge/auth/logout`: revokes [token] on the server.
+  Future<void> logout(String token);
   Future<List<Round>> rounds();
   Future<Round> round(String roundId);
   Future<List<Contestant>> contestants(String roundId);
@@ -42,6 +45,9 @@ class HttpJudgeApi implements JudgeApi {
 
   static Map<String, dynamic> _map(dynamic data) =>
       data is Map ? Map<String, dynamic>.from(data) : const <String, dynamic>{};
+
+  @override
+  Future<void> logout(String token) => client.postWithToken('/judge/auth/logout', token);
 
   @override
   Future<LoginResult> login(String email, String password) async {

@@ -3,6 +3,7 @@
 // only the workspaces the login's `actor_type` allows: owner → Admin + Judge,
 // admin → Admin, judge → Judge (one card uses the prototype's `.is-single`).
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../navigation/judge_nav.dart';
@@ -20,9 +21,9 @@ class ModeSelectorScreen extends StatelessWidget {
 
   /// Workspaces the signed-in account may open (session.js `modesFor`).
   static List<AppMode> availableModes(SessionStore session) => [
-        if (session.canAdmin) AppMode.admin,
-        if (session.canJudge) AppMode.judge,
-      ];
+    if (session.canAdmin) AppMode.admin,
+    if (session.canJudge) AppMode.judge,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -33,80 +34,115 @@ class ModeSelectorScreen extends StatelessWidget {
       onBack: null, // leaving the workspace chooser leaves the app
       child: Scaffold(
         body: SafeArea(
-          child: LayoutBuilder(builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final vw = MediaQuery.sizeOf(context).width;
-            final vh = MediaQuery.sizeOf(context).height;
-            final tiny = width <= 440;
-            // .mode-layout: width min(1060px,100%), padding 30px clamp(24px,5vw,68px) 70px
-            final padX = tiny ? 16.0 : (vw * 0.05).clamp(24.0, 68.0);
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final vw = MediaQuery.sizeOf(context).width;
+              final vh = MediaQuery.sizeOf(context).height;
+              final tiny = width <= 440;
+              // .mode-layout: width min(1060px,100%), padding 30px clamp(24px,5vw,68px) 70px
+              final padX = tiny ? 16.0 : (vw * 0.05).clamp(24.0, 68.0);
+              // Web on a phone browser: the prototype's stacked ≤760px variant
+              // (cards one under the other). iOS / Android keep the Row.
+              final stacked = kIsWeb && width <= 760;
 
-            final cards = [
-              for (final mode in availableModes(session))
-                _ModeCard(
-                  mode: mode,
-                  compact: tiny,
-                  onOpen: () => mode == AppMode.judge ? JudgeNav.goToMyRounds(context) : JudgeNav.goToAdmin(context),
-                ),
-            ];
+              final cards = [
+                for (final mode in availableModes(session))
+                  _ModeCard(
+                    mode: mode,
+                    compact: tiny,
+                    stacked: stacked,
+                    onOpen: () => mode == AppMode.judge ? JudgeNav.goToMyRounds(context) : JudgeNav.goToAdmin(context),
+                  ),
+              ];
 
-            return SingleChildScrollView(
-              child: MaxWidth(
-                maxWidth: 1060,
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(padX, 30, padX, 70),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // .mode-header
-                      Row(children: [
-                        const KreenMark(),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text('KREEN JUDGING',
-                              style: ts(tiny ? 11 : 12,
-                                  weight: FontWeight.w800, color: AppColors.accentBright, letterSpacingEm: 0.17)),
+              return SingleChildScrollView(
+                child: MaxWidth(
+                  maxWidth: 1060,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(padX, 30, padX, 70),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // .mode-header
+                        Row(
+                          children: [
+                            const KreenMark(),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'KREEN JUDGING',
+                                style: ts(
+                                  tiny ? 11 : 12,
+                                  weight: FontWeight.w800,
+                                  color: AppColors.accentBright,
+                                  letterSpacingEm: 0.17,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const AppearanceIconButton(),
+                            const SizedBox(width: 12),
+                            _TextButton(label: 'Log Out', onTap: () => SessionScope.read(context).logout()),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        const AppearanceIconButton(),
-                        const SizedBox(width: 12),
-                        _TextButton(label: 'Log Out', onTap: () => SessionScope.read(context).logout()),
-                      ]),
-                      // .mode-intro: margin clamp(54px, 10vh, 112px) 0 30px
-                      SizedBox(height: width <= 760 ? 58 : (vh * 0.10).clamp(54.0, 112.0)),
-                      Text('YOUR WORKSPACE',
-                          style: ts(12, weight: FontWeight.w800, color: AppColors.accentBright, letterSpacingEm: 0.13)),
-                      const SizedBox(height: 7),
-                      Text('Good to see you,', style: ts(15, color: AppColors.textSecondary)),
-                      const SizedBox(height: 6),
-                      Text(name,
-                          style: ts((vw * 0.04).clamp(32.0, 48.0), weight: FontWeight.w700, letterSpacingEm: -0.035)),
-                      const SizedBox(height: 22),
-                      Text('Choose how you want to continue', style: ts(21, weight: FontWeight.w600)),
-                      const SizedBox(height: 30),
-                      // .mode-options: always side by side in a Row (the app is
-                      // landscape-only, so no stacked ≤760px variant). A single
-                      // mode keeps the prototype's 510px `.is-single` width.
-                      ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: cards.length == 1 ? 510 : double.infinity),
-                        child: IntrinsicHeight(
-                          child: Row(
+                        // .mode-intro: margin clamp(54px, 10vh, 112px) 0 30px
+                        SizedBox(
+                          height: stacked
+                              ? 36
+                              : width <= 760
+                              ? 58
+                              : (vh * 0.10).clamp(54.0, 112.0),
+                        ),
+                        Text(
+                          'YOUR WORKSPACE',
+                          style: ts(12, weight: FontWeight.w800, color: AppColors.accentBright, letterSpacingEm: 0.13),
+                        ),
+                        const SizedBox(height: 7),
+                        Text('Good to see you,', style: ts(15, color: AppColors.textSecondary)),
+                        const SizedBox(height: 6),
+                        Text(
+                          name,
+                          style: ts((vw * 0.04).clamp(32.0, 48.0), weight: FontWeight.w700, letterSpacingEm: -0.035),
+                        ),
+                        const SizedBox(height: 22),
+                        Text('Choose how you want to continue', style: ts(21, weight: FontWeight.w600)),
+                        const SizedBox(height: 30),
+                        // .mode-options: always side by side in a Row (the app is
+                        // landscape-only, so no stacked ≤760px variant). A single
+                        // mode keeps the prototype's 510px `.is-single` width.
+                        if (stacked)
+                          Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               for (var i = 0; i < cards.length; i++) ...[
-                                if (i > 0) SizedBox(width: tiny ? 12 : 18),
-                                Expanded(child: cards[i]),
+                                if (i > 0) const SizedBox(height: 14),
+                                cards[i],
                               ],
                             ],
+                          )
+                        else
+                          ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: cards.length == 1 ? 510 : double.infinity),
+                            child: IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  for (var i = 0; i < cards.length; i++) ...[
+                                    if (i > 0) SizedBox(width: tiny ? 12 : 18),
+                                    Expanded(child: cards[i]),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -114,29 +150,32 @@ class ModeSelectorScreen extends StatelessWidget {
 }
 
 class _ModeCard extends StatelessWidget {
-  const _ModeCard({required this.mode, required this.compact, required this.onOpen});
+  const _ModeCard({required this.mode, required this.compact, required this.onOpen, this.stacked = false});
   final AppMode mode;
   final bool compact;
+
+  /// In the stacked web layout: as tall as its content (no min height).
+  final bool stacked;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final (label, heading, description, action) = switch (mode) {
       AppMode.admin => (
-          'ADMIN MODE',
-          'Manage judging operations',
-          'Set up rounds, coordinate judges and contestants, monitor progress, and manage results.',
-          'Open Admin',
-        ),
+        'ADMIN MODE',
+        'Manage judging operations',
+        'Set up rounds, coordinate judges and contestants, monitor progress, and manage results.',
+        'Open Admin',
+      ),
       AppMode.judge => (
-          'JUDGE MODE',
-          'Score assigned rounds',
-          'View your assigned rounds and continue contestant scoring.',
-          'Open Judge Mode',
-        ),
+        'JUDGE MODE',
+        'Score assigned rounds',
+        'View your assigned rounds and continue contestant scoring.',
+        'Open Judge Mode',
+      ),
     };
     return Container(
-      constraints: BoxConstraints(minHeight: compact ? 270 : 290),
+      constraints: BoxConstraints(minHeight: stacked ? 0 : (compact ? 270 : 290)),
       padding: EdgeInsets.all(compact ? 22 : 28),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -164,7 +203,10 @@ class _ModeCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 26),
-          Text(label, style: ts(12, weight: FontWeight.w800, color: AppColors.accentBright, letterSpacingEm: 0.13)),
+          Text(
+            label,
+            style: ts(12, weight: FontWeight.w800, color: AppColors.accentBright, letterSpacingEm: 0.13),
+          ),
           const SizedBox(height: 7),
           Text(heading, style: ts(20, weight: FontWeight.w700)),
           const SizedBox(height: 9),
@@ -173,7 +215,7 @@ class _ModeCard extends StatelessWidget {
             child: Text(description, style: ts(14, color: AppColors.textSecondary, height: 1.55)),
           ),
           const SizedBox(height: 24),
-          const Spacer(),
+          if (!stacked) const Spacer(),
           // .entry-btn (16px / 400 via `.entry-body button { font: inherit }`)
           AppButton(
             label: action,
